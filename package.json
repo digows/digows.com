@@ -1,0 +1,48 @@
+{
+  "name": "digows.com",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --emit-ts-declarations",
+    "dev": "pnpm run generate:social-images && astro dev",
+    "build": "pnpm run generate:social-images && astro build",
+    "build:local": "pnpm run generate:social-images && PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA astro build",
+    "generate:social-images": "tsx scripts/generate-social-images.ts",
+    "audit": "tsx scripts/audit-built-site.ts",
+    "check": "pnpm run check:site && pnpm run check:worker",
+    "check:site": "astro check",
+    "check:worker": "tsc --noEmit -p tsconfig.worker.json",
+    "preview": "astro preview",
+    "deploy": "pnpm run types:check && pnpm run check && pnpm run build && pnpm run audit && pnpm run d1:migrate:remote && wrangler deploy",
+    "types": "wrangler types worker-types.d.ts --env-file .dev.vars.example",
+    "types:check": "wrangler types worker-types.d.ts --env-file .dev.vars.example --check",
+    "d1:migrate:local": "wrangler d1 migrations apply digows-com --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply digows-com --remote",
+    "cloudflare:login": "wrangler login --use-keyring",
+    "cloudflare:whoami": "wrangler whoami"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.2.1",
+    "@astrojs/rss": "4.0.19",
+    "@astrojs/sitemap": "3.7.3",
+    "astro": "7.0.7",
+    "sharp": "0.35.3",
+    "three": "0.185.1",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.9",
+    "@inlang/paraglide-js": "2.21.0",
+    "@types/node": "^26.1.1",
+    "@types/three": "0.185.1",
+    "tsx": "4.23.0",
+    "typescript": "6.0.3",
+    "wrangler": "4.110.0"
+  },
+  "packageManager": "pnpm@11.9.0"
+}

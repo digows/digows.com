@@ -1,0 +1,78 @@
+---
+import Icon from "./Icon.astro";
+import { getTopicPath, topics } from "../data/topics";
+import { getLocaleUrlSegment, type Locale } from "../i18n/locales";
+import { getSiteRoutePath } from "../i18n/routes";
+import { getContextPanelUiCopy, getGlobalUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly language: Locale;
+  readonly articleContext?: {
+    readonly readingMinutes: number;
+    readonly headings: readonly { readonly depth: number; readonly slug: string; readonly text: string }[];
+  };
+}
+
+const { language, articleContext } = Astro.props;
+const profilePath = getSiteRoutePath("about", language);
+const content = getContextPanelUiCopy(language, articleContext?.readingMinutes);
+const articleCopy = content.reading;
+const globalCopy = getGlobalUiCopy(language);
+
+const socialLinks = [
+  { label: "GitHub", href: "https://github.com/digows", icon: "github", external: true, identity: true },
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/digows/", icon: "linkedin", external: true, identity: true },
+  { label: "Medium", href: "https://medium.com/@digows", icon: "medium", external: true, identity: true },
+  { label: "Instagram", href: "https://www.instagram.com/digows", icon: "instagram", external: true, identity: true },
+  { label: "Facebook", href: "https://www.facebook.com/digows", icon: "facebook", external: true, identity: true },
+  { label: "X", href: "https://twitter.com/digows", icon: "x", external: true, identity: true },
+  { label: "RSS", href: `/${getLocaleUrlSegment(language)}/rss.xml`, icon: "rss", external: false, identity: false },
+  { label: globalCopy.footer.source, href: "https://github.com/digows/digows.com", icon: "code", external: true, identity: false },
+] as const;
+---
+
+<aside class="context-panel" aria-label={articleContext ? articleCopy.label : content.about}>
+  {articleContext ? (
+    <>
+      <section class="context-card context-reading-status">
+        <div><h2>{articleCopy.progress}</h2><strong data-context-progress>0%</strong></div>
+        <div class="context-progress-track" aria-hidden="true"><span></span></div>
+        <p>{articleCopy.minutes}</p>
+      </section>
+      {articleContext.headings.length > 0 && <nav class="context-card context-toc" aria-label={articleCopy.contents}>
+        <h2>{articleCopy.contents}</h2>
+        <ol>{articleContext.headings.filter((heading) => heading.depth <= 3).map((heading) => <li class:list={{ "is-nested": heading.depth === 3 }}><a href={`#${heading.slug}`}>{heading.text}</a></li>)}</ol>
+      </nav>}
+      <section class="context-card context-actions">
+        <button type="button" data-context-command="focus">◐ {articleCopy.focus}</button>
+        <button type="button" data-context-command="listen">◉ {articleCopy.listen}</button>
+        <button type="button" data-context-command="bookmark">☆ {articleCopy.bookmark}</button>
+        <button type="button" data-context-command="share">↗ {articleCopy.share}</button>
+      </section>
+    </>
+  ) : (
+    <>
+  <section class="context-card context-card--profile">
+    <a class="profile-mark" href={profilePath} aria-label={content.profile}><Icon name="profile" /></a>
+    <div>
+      <h2><a href={profilePath}>{content.about}</a></h2>
+      <p>{content.biography}</p>
+      <a class="context-card__cta" href={profilePath}>{content.profile}<span aria-hidden="true">→</span></a>
+    </div>
+  </section>
+  <nav class="context-card" aria-labelledby="context-topics">
+    <h2 id="context-topics">{content.topics}</h2>
+    <ul class="topic-list">
+      {topics.map((topic) => <li><a href={getTopicPath(topic, language)}>{topic.labels[language]}<span aria-hidden="true">→</span></a></li>)}
+    </ul>
+  </nav>
+  <section class="context-card">
+    <h2>{content.elsewhere}</h2>
+    <ul class="social-links">
+      {socialLinks.map((link) => <li><a href={link.href} target={link.external ? "_blank" : undefined} rel={link.external ? `${link.identity ? "me " : ""}noopener noreferrer` : undefined}><Icon name={link.icon} /><span>{link.label}</span>{link.external && <Icon name="arrow" />}</a></li>)}
+    </ul>
+  </section>
+    </>
+  )}
+</aside>

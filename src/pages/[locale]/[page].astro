@@ -1,0 +1,37 @@
+---
+import type { GetStaticPaths } from "astro";
+import ArchivePage from "../../components/ArchivePage.astro";
+import AboutPage from "../../components/AboutPage.astro";
+import ContactPage from "../../components/ContactPage.astro";
+import { getLocaleUrlSegment, supportedLocales, type Locale } from "../../i18n/locales";
+import { getSiteRouteSlug, type SiteRouteKey } from "../../i18n/routes";
+
+type SupportedPageRoute = Extract<SiteRouteKey, "about" | "archive" | "contact">;
+
+interface PageProps
+{
+  readonly locale: Locale;
+  readonly route: SupportedPageRoute;
+}
+
+export const getStaticPaths = (() =>
+{
+  const supportedPageRoutes: readonly SupportedPageRoute[] = ["about", "archive", "contact"];
+
+  return supportedLocales.flatMap((locale) => supportedPageRoutes.map((route) => ({
+    params: {
+      locale: getLocaleUrlSegment(locale),
+      page: getSiteRouteSlug(route, locale),
+    },
+    props: { locale, route },
+  })));
+}) satisfies GetStaticPaths;
+
+const { locale, route } = Astro.props as PageProps;
+---
+
+{route === "about"
+  ? <AboutPage locale={locale} />
+  : route === "archive"
+    ? <ArchivePage language={locale} />
+    : <ContactPage language={locale} />}

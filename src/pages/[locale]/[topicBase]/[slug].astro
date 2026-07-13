@@ -1,0 +1,26 @@
+---
+import type { GetStaticPaths } from "astro";
+import TopicPage from "../../../components/TopicPage.astro";
+import { topics, type TopicDefinition } from "../../../data/topics";
+import { getLocaleUrlSegment, supportedLocales, type Locale } from "../../../i18n/locales";
+import { getTopicRouteSegment } from "../../../i18n/routes";
+
+interface TopicPageProps
+{
+  readonly topic: TopicDefinition;
+  readonly locale: Locale;
+}
+
+export const getStaticPaths = (() => supportedLocales.flatMap((locale) => topics.map((topic) => ({
+  params: {
+    locale: getLocaleUrlSegment(locale),
+    topicBase: getTopicRouteSegment(locale),
+    slug: topic.slugs[locale],
+  },
+  props: { topic, locale },
+})))) satisfies GetStaticPaths;
+
+const { topic, locale } = Astro.props as TopicPageProps;
+---
+
+<TopicPage topic={topic} locale={locale} />

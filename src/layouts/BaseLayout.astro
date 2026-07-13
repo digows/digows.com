@@ -1,0 +1,163 @@
+---
+import SeoHead from "../components/SeoHead.astro";
+import ContextPanel from "../components/ContextPanel.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import Icon from "../components/Icon.astro";
+import { defaultLocale, getLocaleUrlSegment, localeDefinitions, supportedLocales, type Locale } from "../i18n/locales";
+import type { LanguageAlternate } from "../i18n/routes";
+import { getGlobalUiCopy } from "../i18n/ui";
+import "../styles/global.css";
+
+interface Props
+{
+  readonly title: string;
+  readonly seoTitle?: string;
+  readonly description: string;
+  readonly canonicalPath?: string;
+  readonly type?: "website" | "article" | "profile";
+  readonly publishedAt?: Date;
+  readonly updatedAt?: Date;
+  readonly language?: Locale;
+  readonly image?: string;
+  readonly categories?: readonly string[];
+  readonly tags?: readonly string[];
+  readonly alternates?: readonly LanguageAlternate[];
+  readonly articleContext?: {
+    readonly readingMinutes: number;
+    readonly headings: readonly { readonly depth: number; readonly slug: string; readonly text: string }[];
+  };
+  readonly immersive?: boolean;
+  readonly landing?: boolean;
+  readonly noIndex?: boolean;
+}
+
+const props = Astro.props;
+const language = props.language ?? defaultLocale;
+const copy = getGlobalUiCopy(language);
+---
+
+<!doctype html>
+<html lang={language} dir={localeDefinitions[language].direction} data-supported-locales={supportedLocales.join(",")}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="application-name" content="digows" />
+    <meta name="apple-mobile-web-app-title" content="digows" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="alternate" type="application/rss+xml" title="Rodrigo P. Fraga" href={`/${getLocaleUrlSegment(language)}/rss.xml`} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta name="theme-color" content="#eeede8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#090a0f" media="(prefers-color-scheme: dark)" />
+    <script is:inline>
+      (() => {
+        try
+        {
+          const savedTheme = localStorage.getItem("theme");
+          if (savedTheme === "light" || savedTheme === "dark") document.documentElement.dataset.theme = savedTheme;
+        }
+        catch {}
+      })();
+    </script>
+    <SeoHead {...props} />
+    <!-- Google tag (gtag.js) -->
+    <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-HT2YR180C1"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-HT2YR180C1');
+    </script>
+  </head>
+  <body class:list={{ "immersive-page": props.immersive, "landing-page": props.landing }}>
+    <div class="site-shell">
+      <SiteHeader
+        language={language}
+        alternates={props.alternates}
+      />
+      <div class:list={["page-grid", { "page-grid--immersive": props.immersive, "page-grid--landing": props.landing }]}>
+        <main id="content">
+          <slot />
+        </main>
+        {!props.immersive && <ContextPanel language={language} articleContext={props.articleContext} />}
+      </div>
+    </div>
+    <footer class="site-footer">
+      <p>© {new Date().getFullYear()} Rodrigo P. Fraga.</p>
+      <nav aria-label={copy.footer.siteLinks}>
+        <a href={`/${getLocaleUrlSegment(language)}/rss.xml`}><Icon name="rss" />RSS</a>
+        <a href="https://github.com/digows/digows.com" target="_blank" rel="noopener noreferrer"><Icon name="code" />{copy.footer.source}</a>
+      </nav>
+    </footer>
+    <div class="site-toast" data-site-toast role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <script>
+      import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../lib/browser-storage";
+
+      const themeButtons = document.querySelectorAll<HTMLButtonElement>("[data-theme-value]");
+      const activeTheme = readLocalStorage("theme") ?? "system";
+      const toast = document.querySelector<HTMLElement>("[data-site-toast]");
+      let toastTimer: number | undefined;
+
+      document.addEventListener("click", (event) =>
+      {
+        if (!(event.target instanceof Element)) return;
+
+        const languageLink = event.target.closest<HTMLAnchorElement>("a[data-locale]");
+        const selectedLanguage = languageLink?.dataset.locale;
+
+        const supportedLocaleValues = document.documentElement.dataset.supportedLocales?.split(",") ?? [];
+
+        if (supportedLocaleValues.includes(selectedLanguage ?? ""))
+        {
+          writeLocalStorage("digows.preferredLocale", selectedLanguage ?? "");
+        }
+      });
+
+      window.addEventListener("digows:toast", (event) =>
+      {
+        if (!(event instanceof CustomEvent) || typeof event.detail !== "string" || event.detail.length === 0 || toast === null)
+        {
+          return;
+        }
+
+        window.clearTimeout(toastTimer);
+        toast.textContent = event.detail;
+        toast.hidden = false;
+        toastTimer = window.setTimeout(() =>
+        {
+          toast.hidden = true;
+          toast.textContent = "";
+        }, 2_400);
+      });
+
+      for (const button of themeButtons)
+      {
+        button.setAttribute("aria-pressed", `${button.dataset.themeValue === activeTheme}`);
+        button.addEventListener("click", () =>
+        {
+          const theme = button.dataset.themeValue ?? "system";
+
+          if (theme === "light" || theme === "dark")
+          {
+            document.documentElement.dataset.theme = theme;
+            writeLocalStorage("theme", theme);
+          }
+          else
+          {
+            delete document.documentElement.dataset.theme;
+            removeLocalStorage("theme");
+          }
+
+          for (const candidate of themeButtons)
+          {
+            candidate.setAttribute("aria-pressed", `${candidate === button}`);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

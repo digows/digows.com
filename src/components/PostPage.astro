@@ -1,0 +1,84 @@
+---
+import { render } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ArticleExperience from "./ArticleExperience.astro";
+import ArticleInsights from "./ArticleInsights.astro";
+import Comments from "./Comments.astro";
+import IflessExperience from "./IflessExperience.astro";
+import Reactions from "./Reactions.astro";
+import { calculateReadingMinutes, formatPublishedDate } from "../i18n/formatting";
+import { getSiteRoutePath, type LanguageAlternate } from "../i18n/routes";
+import { getPostPageUiCopy } from "../i18n/ui";
+import { getPostPath, getPostPublicationDate, getPostPublicationDateValue, getPublishedPosts, type Post } from "../lib/posts";
+import { getPostSocialImagePath } from "../lib/social-images";
+
+interface Props
+{
+  readonly post: Post;
+}
+
+const { post } = Astro.props;
+const { Content, headings } = await render(post);
+const allPosts = await getPublishedPosts();
+const siblingPosts = allPosts.filter((candidate) => candidate.data.translationKey === post.data.translationKey);
+const originalPost = siblingPosts.find((candidate) => candidate.data.translationOf === undefined) ?? post;
+const alternates: readonly LanguageAlternate[] = [
+  ...siblingPosts.map((candidate) => ({ language: candidate.data.language, path: getPostPath(candidate) })),
+  { language: "x-default", path: getPostPath(originalPost) },
+];
+const readingMinutes = calculateReadingMinutes(post.body ?? "", post.data.language);
+const relatedPosts = (post.data.editorial?.relatedTranslationKeys ?? []).map((translationKey) =>
+  allPosts.find((candidate) => candidate.data.translationKey === translationKey && candidate.data.language === post.data.language),
+).filter((candidate): candidate is Post => candidate !== undefined);
+const canonicalPath = getPostPath(post);
+const copy = getPostPageUiCopy(post.data.language);
+const publicationDate = getPostPublicationDate(post);
+---
+
+<BaseLayout
+  title={post.data.title}
+  seoTitle={post.data.seoTitle}
+  description={post.data.description}
+  canonicalPath={canonicalPath}
+  type="article"
+  publishedAt={post.data.publishedAt}
+  updatedAt={post.data.updatedAt}
+  language={post.data.language}
+  image={getPostSocialImagePath(post)}
+  categories={post.data.categories}
+  tags={post.data.tags}
+  alternates={alternates}
+  articleContext={{ readingMinutes, headings }}
+>
+  <article class="post">
+    <header>
+      <p class="eyebrow">{post.data.categories.join(" · ")}</p>
+      <h1>{post.data.title}</h1>
+      <p class="post-byline">
+        <a href={getSiteRoutePath("about", post.data.language)} rel="author">Rodrigo P. Fraga</a>
+        <span aria-hidden="true">·</span>
+        <time datetime={getPostPublicationDateValue(post)}>{formatPublishedDate(publicationDate, post.data.language)}</time>
+      </p>
+      <ArticleExperience
+        language={post.data.language}
+        title={post.data.title}
+        translationKey={post.data.translationKey}
+        canonicalPath={canonicalPath}
+        readingMinutes={readingMinutes}
+      />
+    </header>
+    {post.data.legacy && (
+      <aside class="legacy-note">
+        <strong>{copy.historicalNote}</strong>
+        <p>{copy.historicalNoteBody}</p>
+      </aside>
+    )}
+    <div class="post-content">
+      <Content />
+    </div>
+    {post.data.editorial && <ArticleInsights editorial={post.data.editorial} language={post.data.language} relatedPosts={relatedPosts} />}
+    {post.data.editorial?.interactiveExperience === "find-hidden-decision" && <IflessExperience language={post.data.language} />}
+    <Reactions contentId={post.data.translationKey} language={post.data.language} />
+    <Comments contentId={post.data.translationKey} language={post.data.language} discussionPrompt={post.data.editorial?.discussionPrompt} />
+  </article>
+</BaseLayout>

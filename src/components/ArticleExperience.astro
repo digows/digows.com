@@ -1,0 +1,332 @@
+---
+import type { Locale } from "../i18n/locales";
+import { getArticleUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly language: Locale;
+  readonly title: string;
+  readonly translationKey: string;
+  readonly canonicalPath: string;
+  readonly readingMinutes: number;
+  readonly contentKind?: "article" | "profile";
+}
+const { language, title, translationKey, canonicalPath, readingMinutes, contentKind = "article" } = Astro.props;
+const content = getArticleUiCopy(language, readingMinutes, contentKind);
+---
+
+<div class="reading-progress" aria-hidden="true"><span data-reading-progress></span></div>
+<div class="article-actions" data-article-actions data-language={language} data-title={title} data-translation-key={translationKey} data-canonical-path={canonicalPath} data-content-kind={contentKind} data-copy={JSON.stringify(content)}>
+  <span class="article-actions__time">{content.minutes}</span>
+  <button type="button" data-article-command="focus" aria-pressed="false">◐ <span>{content.focus}</span></button>
+  <button type="button" data-article-command="listen" aria-pressed="false">◉ <span>{content.listen}</span></button>
+  <button type="button" data-article-command="bookmark" aria-pressed="false">☆ <span>{content.bookmark}</span></button>
+  <button type="button" data-article-command="share">↗ <span>{content.share}</span></button>
+  <button type="button" data-open-ai>✦ <span>{content.askAi}</span></button>
+</div>
+
+<div class="selection-actions" data-selection-actions hidden>
+  <button type="button" data-selection-command="copy">{content.copy}</button>
+  <button type="button" data-selection-command="comment">{content.comment}</button>
+  <button type="button" data-selection-command="quote">{content.quote}</button>
+  <button type="button" data-selection-command="ai">{content.askAi}</button>
+</div>
+
+<dialog class="ai-dialog" data-ai-dialog aria-labelledby="ai-dialog-title">
+  <form method="dialog"><button class="dialog-close" aria-label={content.close}>×</button></form>
+  <h2 class="eyebrow" id="ai-dialog-title">{content.aiTitle}</h2>
+  <p>{content.aiNote}</p>
+  <div class="ai-providers">
+    {(["ChatGPT", "Claude", "Gemini", "Grok"] as const).map((provider) => <button type="button" data-ai-provider={provider.toLowerCase()}>{provider}<span aria-hidden="true">↗</span></button>)}
+  </div>
+</dialog>
+
+<dialog class="quote-dialog" data-quote-dialog aria-labelledby="quote-dialog-title">
+  <form method="dialog"><button class="dialog-close" aria-label={content.close}>×</button></form>
+  <h2 class="sr-only" id="quote-dialog-title">{content.quote}</h2>
+  <canvas width="1200" height="630" data-quote-canvas role="img"></canvas>
+  <button type="button" class="button" data-download-quote>{content.download}</button>
+</dialog>
+
+<script>
+  import { buildAiPrompt } from "../content/prompts/ai";
+  import { isLocale, localeDefinitions, type Locale } from "../i18n/locales";
+  import { readLocalStorage, writeLocalStorage } from "../lib/browser-storage";
+
+  interface ArticleCopy { readonly copied: string; readonly linkCopied: string; readonly copy: string; readonly wrap: string; }
+  type AiProvider = "chatgpt" | "claude" | "gemini" | "grok";
+  const aiProviders: readonly AiProvider[] = ["chatgpt", "claude", "gemini", "grok"];
+  const root = document.querySelector<HTMLElement>("[data-article-actions]");
+
+  if (root !== null)
+  {
+    initializeArticleExperience(root);
+  }
+
+  function initializeArticleExperience(actions: HTMLElement): void
+  {
+    const article = document.querySelector<HTMLElement>(".post");
+    const content = article?.querySelector<HTMLElement>(".post-content");
+    if (article === null || content == null) return;
+    const language = actions.dataset.language;
+    if (!isLocale(language)) return;
+    const title = actions.dataset.title ?? document.title;
+    const translationKey = actions.dataset.translationKey ?? location.pathname;
+    const copy = JSON.parse(actions.dataset.copy ?? "{}") as ArticleCopy;
+    const progressBar = document.querySelector<HTMLElement>("[data-reading-progress]");
+    const bookmarkButton = actions.querySelector<HTMLButtonElement>("[data-article-command='bookmark']");
+    const saved = readBookmarks();
+    updateBookmark(bookmarkButton, saved.has(translationKey));
+
+    const updateProgress = (): void =>
+    {
+      const rect = content.getBoundingClientRect();
+      const distance = Math.max(content.offsetHeight - innerHeight * 0.45, 1);
+      const progress = Math.min(Math.max(-rect.top / distance, 0), 1);
+      if (progressBar !== null) progressBar.style.transform = `scaleX(${progress})`;
+      document.querySelectorAll<HTMLElement>("[data-context-progress]").forEach((item) => { item.style.setProperty("--progress", `${progress * 100}%`); item.textContent = `${Math.round(progress * 100)}%`; });
+    };
+    addEventListener("scroll", updateProgress, { passive: true });
+    updateProgress();
+
+    actions.addEventListener("click", async (event) =>
+    {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
+      if (button === null) return;
+      const command = button.dataset.articleCommand;
+      if (command === "focus")
+      {
+        const active = document.documentElement.toggleAttribute("data-focus-mode");
+        button.setAttribute("aria-pressed", `${active}`);
+      }
+      else if (command === "bookmark")
+      {
+        if (saved.has(translationKey)) saved.delete(translationKey); else saved.add(translationKey);
+        writeLocalStorage("digows.bookmarks", JSON.stringify([...saved]));
+        updateBookmark(button, saved.has(translationKey));
+      }
+      else if (command === "share")
+      {
+        await shareUrl(title, canonicalArticleUrl(actions), copy);
+      }
+      else if (command === "listen")
+      {
+        toggleSpeech(button, content, language);
+      }
+    });
+
+    document.querySelectorAll<HTMLElement>("[data-context-command]").forEach((button) => button.addEventListener("click", () =>
+    {
+      actions.querySelector<HTMLButtonElement>(`[data-article-command='${button.dataset.contextCommand}']`)?.click();
+    }));
+
+    enhanceCodeBlocks(content, copy);
+    initializeSelection(content, actions, language, title, copy);
+    initializeAiDialog(actions, language, title, canonicalArticleUrl(actions), copy);
+  }
+
+  function updateBookmark(button: HTMLButtonElement | null, active: boolean): void
+  {
+    if (button === null) return;
+    button.setAttribute("aria-pressed", `${active}`);
+    button.firstChild!.textContent = active ? "★ " : "☆ ";
+  }
+
+  function toggleSpeech(button: HTMLButtonElement, content: HTMLElement, language: Locale): void
+  {
+    if (!("speechSynthesis" in window)) { button.hidden = true; return; }
+    if (speechSynthesis.speaking)
+    {
+      speechSynthesis.cancel();
+      button.setAttribute("aria-pressed", "false");
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(content.innerText);
+    utterance.lang = localeDefinitions[language].speechLocale;
+    utterance.rate = 1;
+    utterance.addEventListener("end", () => button.setAttribute("aria-pressed", "false"));
+    speechSynthesis.speak(utterance);
+    button.setAttribute("aria-pressed", "true");
+  }
+
+  function enhanceCodeBlocks(content: HTMLElement, copy: ArticleCopy): void
+  {
+    for (const pre of content.querySelectorAll<HTMLPreElement>("pre"))
+    {
+      const wrapper = document.createElement("div");
+      wrapper.className = "code-block";
+      pre.before(wrapper);
+      wrapper.append(pre);
+      const toolbar = document.createElement("div");
+      toolbar.className = "code-block__toolbar";
+      const language = pre.dataset.language ?? pre.querySelector("code")?.className.match(/language-([\w-]+)/)?.[1] ?? "code";
+      const label = document.createElement("span"); label.textContent = language;
+      const wrap = document.createElement("button"); wrap.type = "button"; wrap.textContent = copy.wrap;
+      wrap.addEventListener("click", () => pre.classList.toggle("is-wrapped"));
+      const copyButton = document.createElement("button"); copyButton.type = "button"; copyButton.textContent = copy.copy;
+      copyButton.addEventListener("click", async () =>
+      {
+        if (!(await copyText(pre.innerText))) return;
+        copyButton.textContent = copy.copied;
+        setTimeout(() => { copyButton.textContent = copy.copy; }, 1_600);
+      });
+      toolbar.append(label, wrap, copyButton);
+      wrapper.prepend(toolbar);
+    }
+  }
+
+  function initializeSelection(content: HTMLElement, actions: HTMLElement, language: Locale, title: string, copy: ArticleCopy): void
+  {
+    const popover = document.querySelector<HTMLElement>("[data-selection-actions]");
+    if (popover === null) return;
+    let selectedText = "";
+    let anchorId = "";
+    const refresh = (): void =>
+    {
+      const selection = getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const ancestor = range?.commonAncestorContainer instanceof Element ? range.commonAncestorContainer : range?.commonAncestorContainer.parentElement;
+      const paragraph = ancestor?.closest<HTMLElement>("[data-article-paragraph]");
+      selectedText = selection?.toString().replace(/\s+/g, " ").trim().slice(0, 500) ?? "";
+      anchorId = paragraph?.id ?? "";
+      if (range === null || paragraph == null || !content.contains(paragraph) || selectedText.length < 3) { popover.hidden = true; return; }
+      const rect = range.getBoundingClientRect();
+      popover.style.left = `${Math.min(Math.max(rect.left + rect.width / 2, 170), innerWidth - 170)}px`;
+      popover.style.top = `${Math.max(rect.top + scrollY - 58, scrollY + 8)}px`;
+      popover.hidden = false;
+    };
+    content.addEventListener("mouseup", () => setTimeout(refresh));
+    content.addEventListener("touchend", () => setTimeout(refresh));
+    content.addEventListener("keyup", refresh);
+    popover.addEventListener("click", async (event) =>
+    {
+      const command = event.target instanceof HTMLElement ? event.target.dataset.selectionCommand : undefined;
+      if (command === "copy" && await copyText(selectedText)) window.dispatchEvent(new CustomEvent("digows:toast", { detail: copy.copied }));
+      if (command === "comment") window.dispatchEvent(new CustomEvent("digows:comment-anchor", { detail: { anchorId, quote: selectedText } }));
+      if (command === "quote") openQuoteCard(selectedText, title, language);
+      if (command === "ai") openAiDialog(actions, language, title, canonicalArticleUrl(actions), selectedText, copy);
+      popover.hidden = true;
+    });
+  }
+
+  function initializeAiDialog(actions: HTMLElement, language: Locale, title: string, url: string, copy: ArticleCopy): void
+  {
+    document.querySelectorAll<HTMLElement>("[data-open-ai]").forEach((button) => button.addEventListener("click", () => openAiDialog(actions, language, title, url, "", copy)));
+  }
+
+  function openAiDialog(actions: HTMLElement, language: Locale, title: string, url: string, excerpt: string, _copy: ArticleCopy): void
+  {
+    const dialog = document.querySelector<HTMLDialogElement>("[data-ai-dialog]");
+    if (dialog === null) return;
+    const preferred = readLocalStorage("digows.ai-provider");
+    dialog.querySelectorAll("[data-ai-provider]").forEach((providerButton) => providerButton.classList.remove("is-preferred"));
+    if (isAiProvider(preferred)) dialog.querySelector(`[data-ai-provider='${preferred}']`)?.classList.add("is-preferred");
+    dialog.onclick = async (event) =>
+    {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("[data-ai-provider]") : null;
+      if (button === null) return;
+      const provider = button.dataset.aiProvider;
+      if (!isAiProvider(provider)) return;
+      const prompt = buildAiPrompt({ locale: language, title, url, excerpt, contentKind: actions.dataset.contentKind === "profile" ? "profile" : "article" });
+      const copyPrompt = copyText(prompt);
+      writeLocalStorage("digows.ai-provider", provider);
+      window.open(providerUrl(provider, prompt), "_blank", "noopener,noreferrer");
+      await copyPrompt;
+    };
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function providerUrl(provider: AiProvider, prompt: string): string
+  {
+    const encoded = encodeURIComponent(prompt);
+    if (provider === "chatgpt") return `https://chatgpt.com/?hints=search&q=${encoded}`;
+    if (provider === "claude") return `https://claude.ai/new?q=${encoded}`;
+    if (provider === "gemini") return `https://gemini.google.com/app?prompt=${encoded}`;
+    return `https://grok.com/?q=${encoded}`;
+  }
+
+  function canonicalArticleUrl(actions: HTMLElement): string
+  {
+    return new URL(actions.dataset.canonicalPath ?? location.pathname, location.origin).href;
+  }
+
+  async function shareUrl(title: string, url: string, copy: ArticleCopy): Promise<void>
+  {
+    if (navigator.share !== undefined)
+    {
+      try
+      {
+        await navigator.share({ title, url });
+        return;
+      }
+      catch (error)
+      {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    if (await copyText(url)) window.dispatchEvent(new CustomEvent("digows:toast", { detail: copy.linkCopied }));
+  }
+
+  function openQuoteCard(quote: string, title: string, language: Locale): void
+  {
+    const dialog = document.querySelector<HTMLDialogElement>("[data-quote-dialog]");
+    const canvas = dialog?.querySelector<HTMLCanvasElement>("[data-quote-canvas]");
+    if (dialog == null || canvas == null) return;
+    const context = canvas.getContext("2d"); if (context === null) return;
+    canvas.setAttribute("aria-label", quote);
+    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); context.fillRect(0, 0, 1200, 630);
+    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(); context.fillRect(0, 0, 18, 630);
+    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim(); context.font = "48px Georgia";
+    drawWrappedText(context, `“${quote}”`, 76, 95, 1040, 62, 6, language);
+    context.font = "600 24px Inter, sans-serif"; context.fillText(title.slice(0, 80), 76, 520);
+    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim(); context.font = "22px Inter, sans-serif"; context.fillText(`Rodrigo P. Fraga · digows.com · ${language}`, 76, 570);
+    const download = dialog.querySelector<HTMLButtonElement>("[data-download-quote]");
+    if (download !== null) download.onclick = () => { const link = document.createElement("a"); link.download = "digows-quote.png"; link.href = canvas.toDataURL("image/png"); link.click(); };
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function drawWrappedText(context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, maxLines: number, language: Locale): void
+  {
+    const compact = language === "zh-Hans";
+    const words = compact ? [...text] : text.split(" "); let line = ""; let lines = 0;
+    for (const word of words)
+    {
+      const separator = compact ? "" : " ";
+      const candidate = `${line}${word}${separator}`;
+      if (context.measureText(candidate).width > maxWidth && line !== "") { context.fillText(line.trim(), x, y + lines * lineHeight); line = `${word}${separator}`; lines += 1; if (lines >= maxLines) break; } else line = candidate;
+    }
+    if (lines < maxLines) context.fillText(line.trim(), x, y + lines * lineHeight);
+  }
+
+  function readBookmarks(): Set<string>
+  {
+    try
+    {
+      const parsed: unknown = JSON.parse(readLocalStorage("digows.bookmarks") ?? "[]");
+      return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : []);
+    }
+    catch
+    {
+      return new Set();
+    }
+  }
+
+  function isAiProvider(value: unknown): value is AiProvider
+  {
+    return typeof value === "string" && aiProviders.some((provider) => provider === value);
+  }
+
+  async function copyText(value: string): Promise<boolean>
+  {
+    try
+    {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+</script>

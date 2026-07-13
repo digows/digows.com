@@ -1,0 +1,66 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import HomeSignalField from "./HomeSignalField.astro";
+import PostCard from "./PostCard.astro";
+import { getPublishedPosts, type Post } from "../lib/posts";
+import { homeContent } from "../content/pages/home/content";
+import type { Locale } from "../i18n/locales";
+import { getSiteRouteAlternates, getSiteRoutePath } from "../i18n/routes";
+
+interface Props
+{
+  readonly language: Locale;
+}
+
+const { language } = Astro.props;
+const allPosts = await getPublishedPosts();
+const posts = allPosts.filter((post) => post.data.language === language);
+const alternatesByTranslationKey = new Map<string, Post[]>();
+
+for (const post of allPosts)
+{
+  if (post.data.language === language) continue;
+  const alternates = alternatesByTranslationKey.get(post.data.translationKey) ?? [];
+  alternates.push(post);
+  alternatesByTranslationKey.set(post.data.translationKey, alternates);
+}
+
+const copy = homeContent[language];
+const canonicalPath = getSiteRoutePath("home", language);
+const hasLongHeroTitle = [...copy.title].length > 27;
+---
+
+<BaseLayout
+  title={copy.title}
+  seoTitle={copy.seoTitle}
+  description={copy.description}
+  canonicalPath={canonicalPath}
+  language={language}
+  alternates={getSiteRouteAlternates("home")}
+  landing
+>
+  <header class:list={["home-hero", { "home-hero--long-title": hasLongHeroTitle }]}>
+    <HomeSignalField />
+    <div class="home-hero__content">
+      <p class="eyebrow">{copy.eyebrow}</p>
+      <h1><span>{copy.titleLead}</span><em>{copy.titleEmphasis}</em></h1>
+      <p>{copy.description}</p>
+      <nav class="home-hero__actions" aria-label={copy.actionsLabel}>
+        <a href="#latest-posts">{copy.browse} <span aria-hidden="true">↓</span></a>
+        <a href={getSiteRoutePath("about", language)}>{copy.profile} <span aria-hidden="true">→</span></a>
+      </nav>
+    </div>
+  </header>
+  <section class="post-list" aria-labelledby="latest-posts">
+    <header class="post-list__header">
+      <p class="eyebrow">{copy.latest}</p>
+      <h2 id="latest-posts">{copy.listTitle}</h2>
+      <a href={getSiteRoutePath("archive", language)}>{copy.archive} <span aria-hidden="true">→</span></a>
+    </header>
+    <div class="post-list__items">
+      {posts.length === 0
+        ? <p>{copy.empty}</p>
+        : posts.map((post, index) => <PostCard post={post} alternatePosts={alternatesByTranslationKey.get(post.data.translationKey) ?? []} featured={index === 0} />)}
+    </div>
+  </section>
+</BaseLayout>

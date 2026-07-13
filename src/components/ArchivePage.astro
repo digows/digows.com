@@ -1,0 +1,42 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getPostPath, getPostPublicationDate, getPostPublicationDateValue, getPublishedPosts } from "../lib/posts";
+import { archiveContent } from "../content/pages/archive/content";
+import type { Locale } from "../i18n/locales";
+import { getSiteRouteAlternates, getSiteRoutePath } from "../i18n/routes";
+
+interface Props
+{
+  readonly language: Locale;
+}
+
+const { language } = Astro.props;
+const posts = (await getPublishedPosts()).filter((post) => post.data.language === language);
+const copy = archiveContent[language];
+---
+
+<BaseLayout
+  title={copy.title}
+  description={copy.description}
+  canonicalPath={getSiteRoutePath("archive", language)}
+  language={language}
+  alternates={getSiteRouteAlternates("archive")}
+>
+  <section class="archive" aria-labelledby="archive-title">
+    <p class="eyebrow">{posts.length} {copy.articles} · 2007—{new Date().getUTCFullYear()}</p>
+    <h1 id="archive-title">{copy.title}</h1>
+    {[...Map.groupBy(posts, (post) => getPostPublicationDate(post).getUTCFullYear()).entries()].map(([year, yearPosts]) => (
+      <section class="archive-year">
+        <h2>{year}</h2>
+        <ol>
+          {yearPosts.map((post) => (
+            <li>
+              <time datetime={getPostPublicationDateValue(post)}>{getPostPublicationDate(post).toLocaleDateString(post.data.language, { day: "2-digit", month: "short", timeZone: "UTC" })}</time>
+              <a href={getPostPath(post)}>{post.data.title}</a>
+            </li>
+          ))}
+        </ol>
+      </section>
+    ))}
+  </section>
+</BaseLayout>

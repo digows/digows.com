@@ -1,0 +1,392 @@
+---
+import type { Locale } from "../i18n/locales";
+import { getCommentsUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly contentId: string;
+  readonly language: Locale;
+  readonly discussionPrompt?: { readonly key: string; readonly text: string };
+}
+
+const { contentId, language, discussionPrompt } = Astro.props;
+const copy = getCommentsUiCopy(language);
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAADz2PsYYikXzdz0C";
+---
+
+<section class="comments" id="comments" data-comments-root data-content-id={contentId} data-locale={language} data-copy={JSON.stringify(copy)}>
+  <header class="comments__header">
+    <p class="eyebrow">{copy.heading}</p>
+    <h2 data-comments-count>{copy.loadingComments}</h2>
+  </header>
+  <ol class="comment-list" data-comment-list>
+    <li class="comments__empty" data-comments-empty>{copy.loadingComments}</li>
+  </ol>
+
+  {discussionPrompt && <aside class="discussion-prompt"><p class="eyebrow">{copy.question}</p><p>{discussionPrompt.text}</p></aside>}
+
+  <form class="comment-form" data-comment-form>
+    <div class="comment-form__heading">
+      <h3>{copy.formHeading}</h3>
+      <p>{copy.moderation}</p>
+    </div>
+    <input type="hidden" name="parentId" value="" />
+    <input type="hidden" name="anchorId" value="" />
+    <input type="hidden" name="anchorQuote" value="" />
+    <input type="hidden" name="discussionPromptKey" value={discussionPrompt?.key ?? ""} />
+    <div class="reply-context" data-reply-context hidden>
+      <span></span>
+      <button class="text-button" type="button" data-cancel-reply aria-label={copy.cancelReply}>×</button>
+    </div>
+    <div class="anchor-context" data-anchor-context hidden>
+      <span><strong>{copy.anchored}</strong><q></q></span>
+      <button class="text-button" type="button" data-cancel-anchor>{copy.cancelAnchor} ×</button>
+    </div>
+    <div class="form-grid">
+      <label>{copy.name}<input name="authorName" autocomplete="name" minlength="2" maxlength="80" required /></label>
+      <label>{copy.website}<input name="authorUrl" autocomplete="url" inputmode="url" maxlength="500" /></label>
+    </div>
+    <label>{copy.message}<textarea name="body" rows="6" minlength="3" maxlength="5000" required></textarea></label>
+    <label class="honeypot" hidden>Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+    <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="comment_submit" data-theme="auto" data-size="flexible"></div>
+    <div class="form-actions">
+      <button class="button" type="submit" data-submit-label={copy.submit} data-loading-label={copy.loading}>{copy.submit}</button>
+      <p class="form-status" data-form-status role="status"></p>
+    </div>
+  </form>
+</section>
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+  import { isLocale, type Locale } from "../i18n/locales";
+  import * as m from "../paraglide/messages.js";
+
+  interface CommentsCopy
+  {
+    readonly empty: string;
+    readonly reply: string;
+    readonly pending: string;
+    readonly error: string;
+    readonly submit: string;
+    readonly unavailable: string;
+    readonly unavailableRetry: string;
+    readonly verification: string;
+    readonly verificationExpired: string;
+  }
+
+  interface PublicComment
+  {
+    readonly id: string;
+    readonly parentId: string | null;
+    readonly authorName: string;
+    readonly authorUrl: string | null;
+    readonly body: string;
+    readonly createdAt: string;
+    readonly anchorLocale: Locale | null;
+    readonly anchorId: string | null;
+    readonly anchorQuote: string | null;
+    readonly discussionPromptKey: string | null;
+  }
+
+  interface CommentsResponse
+  {
+    readonly comments: readonly PublicComment[];
+    readonly nextCursor: string | null;
+  }
+
+  declare global
+  {
+    interface Window
+    {
+      turnstile?: { reset: (element?: HTMLElement) => void };
+    }
+  }
+
+  const roots = document.querySelectorAll<HTMLElement>("[data-comments-root]");
+
+  for (const root of roots)
+  {
+    void initializeComments(root);
+  }
+
+  async function initializeComments(root: HTMLElement): Promise<void>
+  {
+    const contentId = root.dataset.contentId;
+    const localeCandidate = root.dataset.locale;
+    const locale = localeCandidate !== undefined && isLocale(localeCandidate) ? localeCandidate : "en";
+    const copy = JSON.parse(root.dataset.copy ?? "{}") as CommentsCopy;
+    const form = root.querySelector<HTMLFormElement>("[data-comment-form]");
+    const commentList = root.querySelector<HTMLOListElement>("[data-comment-list]");
+    const commentCount = root.querySelector<HTMLElement>("[data-comments-count]");
+
+    if (contentId === undefined || form === null || commentList === null || commentCount === null)
+    {
+      return;
+    }
+
+    root.addEventListener("click", (event) =>
+    {
+      const target = event.target;
+
+      if (!(target instanceof HTMLElement))
+      {
+        return;
+      }
+
+      const replyButton = target.closest<HTMLButtonElement>("[data-reply-to]");
+
+      if (replyButton !== null)
+      {
+        setReply(form, replyButton.dataset.replyTo ?? "", replyButton.dataset.replyAuthor ?? "");
+      }
+
+      if (target.closest("[data-cancel-reply]") !== null)
+      {
+        setReply(form, "", "");
+      }
+
+      if (target.closest("[data-cancel-anchor]") !== null)
+      {
+        setAnchor(form, "", "", locale);
+      }
+    });
+
+    form.addEventListener("submit", async (event) =>
+    {
+      event.preventDefault();
+      await submitComment(form, contentId, locale, copy);
+    });
+
+    try
+    {
+      const comments = await loadAllComments(contentId, locale);
+      renderComments(commentList, comments, locale, copy);
+      commentCount.textContent = m.comments_count({ count: comments.length }, { locale });
+    }
+    catch
+    {
+      commentCount.textContent = copy.unavailable;
+      commentList.replaceChildren();
+      const unavailable = document.createElement("li");
+      unavailable.className = "comments__empty";
+      unavailable.textContent = copy.unavailableRetry;
+      commentList.append(unavailable);
+    }
+
+
+    window.addEventListener("digows:comment-anchor", (event) =>
+    {
+      const detail = (event as CustomEvent<{ readonly anchorId: string; readonly quote: string }>).detail;
+      setAnchor(form, detail.anchorId, detail.quote, locale);
+      form.scrollIntoView({ behavior: "smooth", block: "center" });
+      form.querySelector<HTMLTextAreaElement>("textarea[name='body']")?.focus({ preventScroll: true });
+    });
+  }
+
+  async function loadAllComments(contentId: string, locale: Locale): Promise<PublicComment[]>
+  {
+    const comments: PublicComment[] = [];
+    let cursor: string | null = null;
+
+    do
+    {
+      const url = new URL("/api/comments", window.location.origin);
+      url.searchParams.set("content", contentId);
+      url.searchParams.set("limit", "100");
+      url.searchParams.set("language", locale);
+
+      if (cursor !== null)
+      {
+        url.searchParams.set("cursor", cursor);
+      }
+
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+
+      if (!response.ok)
+      {
+        throw new Error("Comments API unavailable");
+      }
+
+      const page = await response.json() as CommentsResponse;
+      comments.push(...page.comments);
+      cursor = page.nextCursor;
+    }
+    while (cursor !== null);
+
+    return comments;
+  }
+
+  function renderComments(list: HTMLOListElement, comments: readonly PublicComment[], locale: Locale, copy: CommentsCopy): void
+  {
+    list.replaceChildren();
+    const commentIds = new Set(comments.map((comment) => comment.id));
+
+    if (comments.length === 0)
+    {
+      const emptyItem = document.createElement("li");
+      emptyItem.className = "comments__empty";
+      emptyItem.textContent = copy.empty;
+      list.append(emptyItem);
+      return;
+    }
+
+    for (const comment of comments)
+    {
+      const item = document.createElement("li");
+      item.className = comment.parentId !== null && commentIds.has(comment.parentId) ? "comment comment--reply" : "comment";
+      item.dataset.commentId = comment.id;
+      const article = document.createElement("article");
+      const header = document.createElement("header");
+      const author = document.createElement("strong");
+
+      if (comment.authorUrl !== null)
+      {
+        const link = document.createElement("a");
+        link.href = comment.authorUrl;
+        link.target = "_blank";
+        link.rel = "ugc nofollow noopener noreferrer";
+        link.textContent = comment.authorName;
+        author.append(link);
+      }
+      else
+      {
+        author.textContent = comment.authorName;
+      }
+
+      const time = document.createElement("time");
+      time.dateTime = comment.createdAt;
+      time.textContent = new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(comment.createdAt));
+      const body = document.createElement("p");
+      body.textContent = comment.body;
+      const replyButton = document.createElement("button");
+      replyButton.type = "button";
+      replyButton.className = "text-button";
+      replyButton.dataset.replyTo = comment.id;
+      replyButton.dataset.replyAuthor = comment.authorName;
+      replyButton.textContent = copy.reply;
+      header.append(author, time);
+      if (comment.anchorId !== null && comment.anchorQuote !== null)
+      {
+        const anchor = document.createElement("a");
+        anchor.className = "comment-anchor";
+        anchor.href = `#${comment.anchorId}`;
+        anchor.textContent = `“${comment.anchorQuote}”`;
+        article.append(header, anchor, body, replyButton);
+      }
+      else
+      {
+        article.append(header, body, replyButton);
+      }
+      item.append(article);
+      list.append(item);
+    }
+  }
+
+  function setAnchor(form: HTMLFormElement, anchorId: string, quote: string, locale: Locale): void
+  {
+    const anchorIdInput = form.elements.namedItem("anchorId");
+    const anchorQuoteInput = form.elements.namedItem("anchorQuote");
+    const context = form.querySelector<HTMLElement>("[data-anchor-context]");
+    const quoteElement = context?.querySelector("q");
+    if (anchorIdInput instanceof HTMLInputElement) anchorIdInput.value = anchorId;
+    if (anchorQuoteInput instanceof HTMLInputElement) anchorQuoteInput.value = quote;
+    if (context !== null) context.hidden = anchorId === "";
+    if (quoteElement != null) quoteElement.textContent = quote;
+    form.dataset.anchorLocale = anchorId === "" ? "" : locale;
+  }
+
+  function setReply(form: HTMLFormElement, commentId: string, authorName: string): void
+  {
+    const parentInput = form.elements.namedItem("parentId");
+    const replyContext = form.querySelector<HTMLElement>("[data-reply-context]");
+    const replyLabel = replyContext?.querySelector("span");
+
+    if (parentInput instanceof HTMLInputElement)
+    {
+      parentInput.value = commentId;
+    }
+
+    if (replyContext !== null && replyLabel instanceof HTMLElement)
+    {
+      replyContext.hidden = commentId === "";
+      replyLabel.textContent = commentId === "" ? "" : `↳ ${authorName}`;
+    }
+
+    if (commentId !== "")
+    {
+      form.querySelector<HTMLTextAreaElement>("textarea[name='body']")?.focus();
+    }
+  }
+
+  async function submitComment(form: HTMLFormElement, contentId: string, locale: Locale, copy: CommentsCopy): Promise<void>
+  {
+    const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+    const status = form.querySelector<HTMLElement>("[data-form-status]");
+    const turnstileInput = form.querySelector<HTMLInputElement>("input[name='cf-turnstile-response']");
+
+    if (submitButton === null || status === null || turnstileInput === null || turnstileInput.value === "")
+    {
+      if (status !== null)
+      {
+        status.textContent = copy.verification;
+      }
+      return;
+    }
+
+    const formData = new FormData(form);
+    submitButton.disabled = true;
+    submitButton.textContent = submitButton.dataset.loadingLabel ?? "Submitting…";
+    status.textContent = "";
+
+    try
+    {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          contentId,
+          parentId: formData.get("parentId"),
+          authorName: formData.get("authorName"),
+          authorUrl: formData.get("authorUrl"),
+          body: formData.get("body"),
+          language: locale,
+          anchorId: formData.get("anchorId") || undefined,
+          anchorQuote: formData.get("anchorQuote") || undefined,
+          anchorLocale: formData.get("anchorId") ? locale : undefined,
+          discussionPromptKey: formData.get("discussionPromptKey") || undefined,
+          website: formData.get("website"),
+          turnstileToken: turnstileInput.value,
+        }),
+      });
+
+      const result = await response.json() as { readonly error?: string };
+
+      if (!response.ok)
+      {
+        if (result.error === "turnstile_failed")
+        {
+          status.textContent = copy.verificationExpired;
+          window.turnstile?.reset(form.querySelector<HTMLElement>(".cf-turnstile") ?? undefined);
+          return;
+        }
+
+        throw new Error("Comment submission failed");
+      }
+
+      form.reset();
+      setReply(form, "", "");
+      setAnchor(form, "", "", locale);
+      status.textContent = copy.pending;
+      window.turnstile?.reset(form.querySelector<HTMLElement>(".cf-turnstile") ?? undefined);
+    }
+    catch
+    {
+      status.textContent = copy.error;
+    }
+    finally
+    {
+      submitButton.disabled = false;
+      submitButton.textContent = submitButton.dataset.submitLabel ?? copy.submit;
+    }
+  }
+</script>

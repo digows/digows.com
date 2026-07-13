@@ -1,0 +1,44 @@
+---
+import { localeDefinitions, type Locale } from "../i18n/locales";
+import type { LanguageAlternate } from "../i18n/routes";
+import { getGlobalUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly language: Locale;
+  readonly alternates: readonly LanguageAlternate[];
+  readonly label?: string;
+}
+
+const {
+  language,
+  alternates,
+  label = getGlobalUiCopy(language).language.current,
+} = Astro.props;
+const availableAlternates = alternates.filter((alternate): alternate is LanguageAlternate & { readonly language: Locale } => alternate.language !== "x-default");
+---
+
+<details class="language-switcher">
+  <summary aria-label={label} title={label}>
+    <span>{localeDefinitions[language].shortName}</span>
+    <span aria-hidden="true">⌄</span>
+  </summary>
+  <nav aria-label={label}>
+    <ul>
+      {availableAlternates.map((alternate) => (
+        <li>
+          <a
+            href={alternate.path}
+            lang={alternate.language}
+            hreflang={alternate.language}
+            data-locale={alternate.language}
+            aria-current={language === alternate.language ? "page" : undefined}
+          >
+            <span>{localeDefinitions[alternate.language].nativeName}</span>
+            <small>{localeDefinitions[alternate.language].shortName}</small>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</details>

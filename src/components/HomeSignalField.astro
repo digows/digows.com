@@ -1,0 +1,302 @@
+<div class="home-signal-field" aria-hidden="true">
+  <canvas data-home-signal-field></canvas>
+</div>
+
+<script>
+  interface SignalPoint
+  {
+    x: number;
+    y: number;
+    velocityX: number;
+    velocityY: number;
+    radius: number;
+    phase: number;
+  }
+
+  interface SignalOrbit
+  {
+    x: number;
+    y: number;
+    radiusX: number;
+    radiusY: number;
+    rotation: number;
+    phase: number;
+    arcLength: number;
+    speed: number;
+    colorIndex: number;
+  }
+
+  const canvas = document.querySelector<HTMLCanvasElement>("[data-home-signal-field]");
+  const hero = canvas?.closest<HTMLElement>(".home-hero");
+  const field = canvas?.closest<HTMLElement>(".home-signal-field");
+  const siteHeader = document.querySelector<HTMLElement>(".site-header");
+
+  if (canvas !== null && canvas !== undefined && hero !== null && hero !== undefined && field !== null && field !== undefined)
+  {
+    const context = canvas.getContext("2d", { alpha: true });
+
+    if (context !== null)
+    {
+      const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+      const animated = !reduceMotion && !saveData;
+      const points: SignalPoint[] = [];
+      const orbits: SignalOrbit[] = [];
+      const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
+      let width = 0;
+      let height = 0;
+      let visible = true;
+      let animationFrame = 0;
+      let headerAnimationFrame = 0;
+      let previousTime = 0;
+      let cobalt = "#4f87ff";
+      let violet = "#c674ff";
+
+      const random = seededRandom(7_311);
+
+      const updateHeaderHeight = (): void =>
+      {
+        const headerHeight = siteHeader?.getBoundingClientRect().height ?? 0;
+        field.style.setProperty("--home-header-height", `${headerHeight}px`);
+      };
+
+      const updateHeaderSurface = (): void =>
+      {
+        headerAnimationFrame = 0;
+        const fadeDistance = Math.max(180, (siteHeader?.getBoundingClientRect().height ?? 0) * 2);
+        const progress = Math.min(1, Math.max(0, scrollY / fadeDistance));
+        document.body.style.setProperty("--landing-header-progress", progress.toFixed(3));
+      };
+
+      const requestHeaderSurfaceUpdate = (): void =>
+      {
+        if (headerAnimationFrame !== 0) return;
+        headerAnimationFrame = requestAnimationFrame(updateHeaderSurface);
+      };
+
+      const resize = (): void =>
+      {
+        const bounds = field.getBoundingClientRect();
+        const pixelRatio = Math.min(devicePixelRatio, 1.5);
+        width = Math.max(1, bounds.width);
+        height = Math.max(1, bounds.height);
+        canvas.width = Math.round(width * pixelRatio);
+        canvas.height = Math.round(height * pixelRatio);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        createScene();
+        draw(0, 0);
+      };
+
+      const createScene = (): void =>
+      {
+        points.length = 0;
+        orbits.length = 0;
+        const pointCount = Math.max(48, Math.min(112, Math.round(width * height / 19_000)));
+
+        for (let index = 0; index < pointCount; index += 1)
+        {
+          points.push({
+            x: random() * width,
+            y: random() * height,
+            velocityX: (random() - 0.5) * 5.5,
+            velocityY: (random() - 0.5) * 4,
+            radius: 0.8 + random() * 1.6,
+            phase: random() * Math.PI * 2,
+          });
+        }
+
+        const orbitCount = width >= 900 ? 11 : 6;
+
+        for (let index = 0; index < orbitCount; index += 1)
+        {
+          const radiusX = Math.min(90 + random() * width * 0.13, width * 0.22);
+
+          orbits.push({
+            x: width * (0.08 + random() * 0.84),
+            y: height * (0.05 + random() * 0.9),
+            radiusX,
+            radiusY: radiusX * (0.2 + random() * 0.24),
+            rotation: random() * Math.PI,
+            phase: random() * Math.PI * 2,
+            arcLength: Math.PI * (0.55 + random() * 0.75),
+            speed: (random() > 0.5 ? 1 : -1) * (0.000018 + random() * 0.000022),
+            colorIndex: index % 3,
+          });
+        }
+      };
+
+      const draw = (time: number, elapsedSeconds: number): void =>
+      {
+        context.clearRect(0, 0, width, height);
+        pointer.x += (pointer.targetX - pointer.x) * 0.045;
+        pointer.y += (pointer.targetY - pointer.y) * 0.045;
+
+        const halo = context.createRadialGradient(width * 0.78, height * 0.34, 0, width * 0.78, height * 0.34, Math.max(width, height) * 0.62);
+        halo.addColorStop(0, `${violet}24`);
+        halo.addColorStop(0.48, `${cobalt}10`);
+        halo.addColorStop(1, `${cobalt}00`);
+        context.fillStyle = halo;
+        context.fillRect(0, 0, width, height);
+
+        for (const orbit of orbits)
+        {
+          const rotation = orbit.rotation + (animated ? time * orbit.speed : 0);
+          const orbitX = orbit.x + pointer.x * 10;
+          const orbitY = orbit.y + pointer.y * 7;
+
+          context.beginPath();
+          context.ellipse(
+            orbitX,
+            orbitY,
+            orbit.radiusX,
+            orbit.radiusY,
+            rotation,
+            orbit.phase,
+            orbit.phase + orbit.arcLength,
+          );
+          context.setLineDash([22 + orbit.colorIndex * 8, 14, 2, 10]);
+          context.lineDashOffset = animated ? time * orbit.speed * 18 : 0;
+          context.strokeStyle = orbit.colorIndex === 0 ? violet : cobalt;
+          context.globalAlpha = 0.045;
+          context.lineWidth = 4;
+          context.stroke();
+          context.globalAlpha = 0.14 + orbit.colorIndex * 0.025;
+          context.lineWidth = orbit.colorIndex === 0 ? 1 : 0.8;
+          context.stroke();
+        }
+
+        context.setLineDash([]);
+        context.lineDashOffset = 0;
+
+        if (animated)
+        {
+          for (const point of points)
+          {
+            point.x += point.velocityX * elapsedSeconds;
+            point.y += point.velocityY * elapsedSeconds;
+
+            if (point.x < -20) point.x = width + 20;
+            if (point.x > width + 20) point.x = -20;
+            if (point.y < -20) point.y = height + 20;
+            if (point.y > height + 20) point.y = -20;
+          }
+        }
+
+        const maximumDistance = Math.min(155, width * 0.22);
+
+        for (let firstIndex = 0; firstIndex < points.length; firstIndex += 1)
+        {
+          const first = points[firstIndex];
+          const firstX = first.x + pointer.x * (8 + first.radius * 2);
+          const firstY = first.y + pointer.y * (5 + first.radius);
+
+          for (let secondIndex = firstIndex + 1; secondIndex < points.length; secondIndex += 1)
+          {
+            const second = points[secondIndex];
+            const distance = Math.hypot(first.x - second.x, first.y - second.y);
+
+            if (distance >= maximumDistance) continue;
+
+            context.beginPath();
+            context.moveTo(firstX, firstY);
+            context.lineTo(second.x + pointer.x * (8 + second.radius * 2), second.y + pointer.y * (5 + second.radius));
+            context.strokeStyle = firstIndex % 3 === 0 ? violet : cobalt;
+            context.globalAlpha = (1 - distance / maximumDistance) * 0.22;
+            context.lineWidth = 0.7;
+            context.stroke();
+          }
+
+          const pulse = animated ? Math.sin(time * 0.0012 + first.phase) * 0.35 : 0;
+          context.beginPath();
+          context.arc(firstX, firstY, Math.max(0.6, first.radius + pulse), 0, Math.PI * 2);
+          context.fillStyle = firstIndex % 4 === 0 ? violet : cobalt;
+          context.globalAlpha = 0.38 + first.radius * 0.12;
+          context.fill();
+        }
+
+        context.globalAlpha = 1;
+      };
+
+      const updatePalette = (): void =>
+      {
+        const styles = getComputedStyle(document.documentElement);
+        cobalt = styles.getPropertyValue("--signal-blue").trim() || "#4f87ff";
+        violet = styles.getPropertyValue("--signal-violet").trim() || "#c674ff";
+
+        if (!animated && width > 0) draw(0, 0);
+      };
+
+      const render = (time: number): void =>
+      {
+        animationFrame = 0;
+        const elapsedSeconds = Math.min((time - previousTime) / 1_000, 0.05);
+        previousTime = time;
+        draw(time, elapsedSeconds);
+
+        if (visible) animationFrame = requestAnimationFrame(render);
+      };
+
+      const start = (): void =>
+      {
+        if (!animated || animationFrame !== 0 || !visible) return;
+        previousTime = performance.now();
+        animationFrame = requestAnimationFrame(render);
+      };
+
+      hero.addEventListener("pointermove", (event) =>
+      {
+        const bounds = hero.getBoundingClientRect();
+        pointer.targetX = (event.clientX - bounds.left) / bounds.width * 2 - 1;
+        pointer.targetY = (event.clientY - bounds.top) / bounds.height * 2 - 1;
+      }, { passive: true });
+      hero.addEventListener("pointerleave", () =>
+      {
+        pointer.targetX = 0;
+        pointer.targetY = 0;
+      }, { passive: true });
+
+      if (siteHeader !== null)
+      {
+        new ResizeObserver(() =>
+        {
+          updateHeaderHeight();
+          requestHeaderSurfaceUpdate();
+        }).observe(siteHeader);
+      }
+
+      addEventListener("scroll", requestHeaderSurfaceUpdate, { passive: true });
+      new ResizeObserver(resize).observe(field);
+      new MutationObserver(updatePalette).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      new IntersectionObserver((entries) =>
+      {
+        visible = entries.some((entry) => entry.isIntersecting);
+
+        if (visible) start();
+        else if (animationFrame !== 0)
+        {
+          cancelAnimationFrame(animationFrame);
+          animationFrame = 0;
+        }
+      }, { threshold: 0.01 }).observe(hero);
+
+      updateHeaderHeight();
+      updateHeaderSurface();
+      updatePalette();
+      resize();
+      start();
+    }
+  }
+
+  function seededRandom(seed: number): () => number
+  {
+    let state = seed >>> 0;
+
+    return () =>
+    {
+      state = Math.imul(state, 1_664_525) + 1_013_904_223 >>> 0;
+      return state / 4_294_967_296;
+    };
+  }
+</script>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="digows orbital mark">
+  <defs>
+    <linearGradient id="signal" x1="8" y1="10" x2="56" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f87ff" />
+      <stop offset="1" stop-color="#c674ff" />
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="48%" r="58%">
+      <stop stop-color="#4f87ff" stop-opacity=".24" />
+      <stop offset="1" stop-color="#4f87ff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#090a0f" />
+  <rect width="64" height="64" rx="15" fill="url(#halo)" />
+  <g fill="none" stroke="url(#signal)" stroke-linecap="round">
+    <ellipse cx="32" cy="32" rx="24" ry="10" transform="rotate(18 32 32)" stroke-width="1.8" opacity=".92" />
+    <ellipse cx="32" cy="32" rx="23" ry="9" transform="rotate(76 32 32)" stroke-width="1.5" opacity=".62" />
+    <ellipse cx="32" cy="32" rx="19" ry="7" transform="rotate(-38 32 32)" stroke-width="1.2" opacity=".46" />
+  </g>
+  <text x="30" y="45" fill="#f0f0f6" font-family="Georgia, 'Times New Roman', serif" font-size="43" font-style="italic" font-weight="700" text-anchor="middle">d</text>
+</svg>

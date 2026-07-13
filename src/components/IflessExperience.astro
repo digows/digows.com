@@ -1,0 +1,120 @@
+---
+import type { Locale } from "../i18n/locales";
+import { iflessExperienceContent } from "../content/experiences/ifless/content";
+
+interface Props { readonly language: Locale; }
+const { language } = Astro.props;
+const content = iflessExperienceContent[language];
+---
+
+<section class="ifless-experience" data-ifless-experience data-locale={language} data-score-suffix={content.score}>
+  <p class="eyebrow">{content.eyebrow}</p>
+  <h2>{content.title}</h2>
+  <p>{content.intro}</p>
+  <div class="ifless-scenarios">
+    {content.scenarios.map((scenario, scenarioIndex) => (
+      <fieldset data-scenario data-answer={scenario.answer}>
+        <legend><span>{scenarioIndex + 1}</span><code>{scenario.code}</code></legend>
+        <p>{content.choose}</p>
+        {scenario.options.map((option, optionIndex) => <label><input type="radio" name={`ifless-${scenarioIndex}`} value={optionIndex} /> {option}</label>)}
+        <button type="button" class="button button--subtle" data-reveal>{content.reveal}</button>
+        <p class="ifless-explanation" data-explanation hidden>{scenario.explanation}</p>
+      </fieldset>
+    ))}
+  </div>
+  <footer><strong data-score>0 {content.score}</strong><button type="button" class="text-button" data-reset>{content.reset}</button></footer>
+</section>
+
+<script>
+  import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../lib/browser-storage";
+
+  interface SavedScenarioState
+  {
+    readonly selected: string | null;
+    readonly revealed: boolean;
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>("[data-ifless-experience]"))
+  {
+    const scenarios = [...root.querySelectorAll<HTMLFieldSetElement>("[data-scenario]")];
+    const score = root.querySelector<HTMLElement>("[data-score]");
+    const suffix = root.dataset.scoreSuffix ?? "";
+    const storageKey = `digows.exercise.ifless.${root.dataset.locale ?? "en"}`;
+    const updateScore = (): void =>
+    {
+      const correct = scenarios.filter((scenario) => scenario.dataset.correct === "true").length;
+      if (score !== null) score.textContent = `${correct} ${suffix}`;
+    };
+    const saveState = (): void =>
+    {
+      writeLocalStorage(storageKey, JSON.stringify(scenarios.map((scenario) => ({
+        selected: scenario.querySelector<HTMLInputElement>("input:checked")?.value ?? null,
+        revealed: !scenario.querySelector<HTMLElement>("[data-explanation]")?.hidden,
+      }))));
+    };
+    for (const scenario of scenarios)
+    {
+      scenario.querySelector("[data-reveal]")?.addEventListener("click", () =>
+      {
+        const selected = scenario.querySelector<HTMLInputElement>("input:checked");
+        if (selected === null) return;
+        scenario.dataset.correct = `${Number(selected.value) === Number(scenario.dataset.answer)}`;
+        const explanation = scenario.querySelector<HTMLElement>("[data-explanation]");
+        if (explanation !== null) explanation.hidden = false;
+        updateScore();
+        saveState();
+      });
+    }
+    root.querySelector("[data-reset]")?.addEventListener("click", () =>
+    {
+      for (const scenario of scenarios)
+      {
+        scenario.querySelectorAll<HTMLInputElement>("input").forEach((input) => { input.checked = false; });
+        delete scenario.dataset.correct;
+        const explanation = scenario.querySelector<HTMLElement>("[data-explanation]");
+        if (explanation !== null) explanation.hidden = true;
+      }
+      updateScore();
+      removeLocalStorage(storageKey);
+    });
+    try
+    {
+      const parsedState: unknown = JSON.parse(readLocalStorage(storageKey) ?? "[]");
+
+      if (!isSavedScenarioStateArray(parsedState))
+      {
+        throw new Error("Invalid saved Ifless exercise state");
+      }
+
+      const savedState = parsedState.slice(0, scenarios.length);
+      savedState.forEach((state, index) =>
+      {
+        const scenario = scenarios[index];
+        if (scenario === undefined || state.selected === null) return;
+        const input = scenario.querySelector<HTMLInputElement>(`input[value='${state.selected}']`);
+        if (input !== null) input.checked = true;
+        if (state.revealed)
+        {
+          scenario.dataset.correct = `${Number(state.selected) === Number(scenario.dataset.answer)}`;
+          const explanation = scenario.querySelector<HTMLElement>("[data-explanation]");
+          if (explanation !== null) explanation.hidden = false;
+        }
+      });
+      updateScore();
+    }
+    catch
+    {
+      removeLocalStorage(storageKey);
+    }
+  }
+
+  function isSavedScenarioStateArray(value: unknown): value is readonly SavedScenarioState[]
+  {
+    return Array.isArray(value) && value.every((state) =>
+      typeof state === "object"
+      && state !== null
+      && (typeof Reflect.get(state, "selected") === "string" || Reflect.get(state, "selected") === null)
+      && typeof Reflect.get(state, "revealed") === "boolean",
+    );
+  }
+</script>

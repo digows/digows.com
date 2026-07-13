@@ -1,0 +1,72 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PostCard from "./PostCard.astro";
+import { getPublishedPosts, type Post } from "../lib/posts";
+import { getTopicPath, postMatchesTopic, topics, type TopicDefinition } from "../data/topics";
+import { defaultLocale, supportedLocales, type Locale } from "../i18n/locales";
+import * as m from "../paraglide/messages.js";
+
+interface Props
+{
+  readonly topic: TopicDefinition;
+  readonly locale: Locale;
+}
+
+const { topic, locale } = Astro.props;
+const allPosts = await getPublishedPosts();
+const posts = allPosts.filter((post) => post.data.language === locale && postMatchesTopic(post, topic));
+const alternatesByTranslationKey = new Map<string, Post[]>();
+
+for (const post of allPosts)
+{
+  if (post.data.language === locale)
+  {
+    continue;
+  }
+
+  const alternates = alternatesByTranslationKey.get(post.data.translationKey) ?? [];
+  alternates.push(post);
+  alternatesByTranslationKey.set(post.data.translationKey, alternates);
+}
+
+const messageOptions = { locale } as const;
+const relatedLabel = m.topic_related({}, messageOptions);
+const allTopicsLabel = m.topic_all({}, messageOptions);
+---
+
+<BaseLayout
+  title={topic.labels[locale]}
+  seoTitle={`${topic.labels[locale]} | Rodrigo P. Fraga`}
+  description={m.topic_seo({ topic: topic.labels[locale] }, messageOptions)}
+  canonicalPath={getTopicPath(topic, locale)}
+  language={locale}
+  alternates={[
+    ...supportedLocales.map((alternateLocale) => ({ language: alternateLocale, path: getTopicPath(topic, alternateLocale) })),
+    { language: "x-default", path: getTopicPath(topic, defaultLocale) },
+  ]}
+>
+  <header class="topic-hero">
+    <p class="eyebrow">{m.topic_article_count({ count: posts.length }, messageOptions)}</p>
+    <h1>{topic.labels[locale]}</h1>
+    <p>{topic.descriptions[locale]}</p>
+    <nav class="topic-hero__nav" aria-label={allTopicsLabel}>
+      {topics.map((candidate) => (
+        <a href={getTopicPath(candidate, locale)} aria-current={candidate.key === topic.key ? "page" : undefined}>
+          {candidate.labels[locale]}
+        </a>
+      ))}
+    </nav>
+  </header>
+  <section class="post-list post-list--topic" aria-labelledby="topic-posts">
+    <header class="post-list__header"><p class="eyebrow">{relatedLabel}</p><h2 id="topic-posts">{relatedLabel}</h2></header>
+    <div class="post-list__items">
+      {posts.map((post, index) => (
+        <PostCard
+          post={post}
+          alternatePosts={alternatesByTranslationKey.get(post.data.translationKey) ?? []}
+          featured={index === 0}
+        />
+      ))}
+    </div>
+  </section>
+</BaseLayout>

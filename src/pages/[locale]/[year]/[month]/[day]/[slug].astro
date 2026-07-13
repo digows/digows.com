@@ -1,0 +1,36 @@
+---
+import type { GetStaticPaths } from "astro";
+import PostPage from "../../../../../components/PostPage.astro";
+import { getLocaleUrlSegment } from "../../../../../i18n/locales";
+import { getPublishedPosts, type Post } from "../../../../../lib/posts";
+
+export const getStaticPaths = (async () =>
+{
+  const posts = await getPublishedPosts();
+
+  return posts.map((post) =>
+  {
+    const [year, month, day, slug] = post.data.permalink.split("/");
+
+    if (year === undefined || month === undefined || day === undefined || slug === undefined)
+    {
+      throw new Error(`Invalid post permalink: ${post.data.permalink}`);
+    }
+
+    return {
+      params: {
+        locale: getLocaleUrlSegment(post.data.language),
+        year,
+        month,
+        day,
+        slug,
+      },
+      props: { post },
+    };
+  });
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props as { readonly post: Post };
+---
+
+<PostPage post={post} />

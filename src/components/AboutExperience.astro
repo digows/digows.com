@@ -1,0 +1,177 @@
+---
+import { createHash } from "node:crypto";
+import type { AboutContent } from "../content/pages/about/content";
+import { getSiteRoutePath } from "../i18n/routes";
+import ArticleExperience from "./ArticleExperience.astro";
+import Comments from "./Comments.astro";
+import Reactions from "./Reactions.astro";
+import "../styles/about.css";
+
+interface Props
+{
+  readonly content: AboutContent;
+}
+
+const { content } = Astro.props;
+const paragraphId = (text: string): string => `paragraph-${createHash("sha256").update(text).digest("hex").slice(0, 12)}`;
+const canonicalPath = getSiteRoutePath("about", content.language);
+const fallbackArchiveImageAlts = {
+  fr: "Capture du blog Blogspot de Rodrigo en décembre 2007",
+  "zh-Hans": "Rodrigo 于 2007 年 12 月在 Blogspot 上的博客截图",
+} as const;
+const archiveImageAlt = content.origins.archiveImageAlt
+  ?? fallbackArchiveImageAlts[content.language as keyof typeof fallbackArchiveImageAlts]
+  ?? "";
+const fallbackCollageLabels = {
+  fr: "Archives du parcours professionnel",
+  "zh-Hans": "职业经历记录",
+} as const;
+const collageLabel = content.eits.collageLabel
+  ?? fallbackCollageLabels[content.language as keyof typeof fallbackCollageLabels]
+  ?? "";
+---
+
+<div class="about-experience about-experience--chronicle" data-about-experience data-language={content.language}>
+  <canvas class="about-webgl" data-about-webgl aria-hidden="true"></canvas>
+  <div class="about-atmosphere" aria-hidden="true"></div>
+  <div class="about-cursor" data-about-cursor aria-hidden="true"></div>
+
+  <article class="post about-story">
+    <header class="about-hero about-hero--chronicle" data-scene="core">
+      <div class="about-hero__index" aria-hidden="true"><span>00</span><span>CURIOSITY → PRACTICE</span><span>PRACTICE → CONSEQUENCE</span></div>
+      <div class="about-hero-media" aria-hidden="true">
+        <figure class="about-hero-media__portrait"><img src="/media/about/rodrigo-illustrated.webp" alt="" width="1000" height="1250" fetchpriority="high" /></figure>
+      </div>
+      <div class="about-hero__copy">
+        <p class="eyebrow about-reveal">{content.hero.kicker}</p>
+        <h1 class="about-title about-title--chronicle about-reveal"><span>{content.hero.titleLead}</span> <strong>{content.hero.titleAccent}</strong>{content.hero.titleTail && <> <span>{content.hero.titleTail}</span></>}</h1>
+        <p class="about-hero__intro about-reveal" id={paragraphId(content.hero.introduction)} data-article-paragraph>{content.hero.introduction}</p>
+        <ArticleExperience language={content.language} title={content.seoTitle} translationKey="page/about" canonicalPath={canonicalPath} readingMinutes={8} contentKind="profile" />
+      </div>
+      <a class="about-scroll-cue" href="#origins"><span>{content.hero.scroll}</span><i aria-hidden="true"></i></a>
+    </header>
+
+    <div class="post-content about-content">
+      <section class="about-section about-origins" id="origins" data-scene="origins">
+        <header class="about-origin-header about-reveal"><div><p class="eyebrow">{content.origins.eyebrow}</p><h2>{content.origins.title}</h2><p id={paragraphId(content.origins.body)} data-article-paragraph>{content.origins.body}</p></div><a class="about-blogshot" href="https://e-digows.blogspot.com/" target="_blank" rel="noopener noreferrer"><img src="/media/about/old-blog.webp" alt={archiveImageAlt} width="1200" height="900" loading="lazy" /><span>{content.origins.archiveLink} ↗</span></a></header>
+        <div class="about-origin-story about-reveal">
+          <div class="about-origin-flow"><svg viewBox="0 0 1080 110" aria-hidden="true"><path d="M25 55 C160 6 230 102 370 55 S580 8 720 55 S930 103 1055 55"></path><path class="about-origin-flow__pulse" d="M25 55 C160 6 230 102 370 55 S580 8 720 55 S930 103 1055 55"></path></svg>{content.origins.artifacts.map((artifact, index) => artifact.href ? <a class="about-origin-card" style={`--origin-index:${index}`} href={artifact.href} target={artifact.href.startsWith("http") ? "_blank" : undefined} rel={artifact.href.startsWith("http") ? "noopener noreferrer" : undefined}><i></i><time>{artifact.year}</time><h3>{artifact.title}</h3><p id={paragraphId(artifact.body)} data-article-paragraph>{artifact.body}</p></a> : <article style={`--origin-index:${index}`}><i></i><time>{artifact.year}</time><h3>{artifact.title}</h3><p id={paragraphId(artifact.body)} data-article-paragraph>{artifact.body}</p></article>)}</div>
+        </div>
+      </section>
+
+      <section class="about-section about-distance" id="distance" data-scene="distance">
+        <header class="about-section__header about-reveal"><p class="eyebrow">{content.distance.eyebrow}</p><h2>{content.distance.title}</h2><div class="about-section__prose"><p id={paragraphId(content.distance.body)} data-article-paragraph>{content.distance.body}</p>{content.distance.continuation.map((paragraph) => <p id={paragraphId(paragraph)} data-article-paragraph>{paragraph}</p>)}<div class="about-distance-links">{content.distance.references.map((reference) => <a href={reference.href} target={reference.href.startsWith("http") ? "_blank" : undefined} rel={reference.href.startsWith("http") ? "noopener noreferrer" : undefined}>{reference.label}</a>)}</div></div></header>
+        <div class="about-route about-reveal"><svg viewBox="0 0 1000 230" role="img" aria-label={content.distance.quote}><path d="M45 165 C180 30 300 210 430 105 S670 25 790 145 S910 185 960 65"></path><path class="about-route__pulse" d="M45 165 C180 30 300 210 430 105 S670 25 790 145 S910 185 960 65"></path></svg>{content.distance.places.map((place, index) => <div style={`--place:${index}`}><i></i><strong>{place.place}</strong><small>{place.note}</small></div>)}</div>
+        <blockquote class="about-pullquote about-reveal">{content.distance.quote}</blockquote>
+      </section>
+
+      <section class="about-section about-eits" id="experience" data-scene="eits">
+        <p class="eyebrow about-section-label about-reveal">{content.eits.eyebrow}</p>
+        <div class="about-work-collage about-reveal" aria-label={collageLabel}>
+          {["eits-team","eits-mpsbr","eits-12-years","eits-formys","arnold","pame","ifbb-operation","gamifier-social","gamifier-74","gamifier-event","oxford","inbound","sebrae"].map((image, index) => <figure style={`--collage-index:${index};--collage-top:${(index % 4) * 21}%;--collage-left:${(index % 5) * 19 - (index % 2) * 3}%;--collage-rotation:${(index - 6) * 1.15}deg;--collage-depth:${(index % 3) * 20}px`}><img src={`/media/about/work/${image}.webp`} alt="" loading="lazy" /></figure>)}
+        </div>
+        <blockquote class="about-experience-quote about-reveal">{content.eits.quote}</blockquote>
+        <div class="about-indicators">{content.eits.indicators.map((indicator) => <div class="about-reveal"><strong>{indicator.value}</strong><span>{indicator.label}</span></div>)}</div>
+        <div class="about-work-links"><a href="https://www.eits.com.br/blog/" target="_blank" rel="noopener noreferrer">EITS ↗</a><a href="https://gamifier.co/blog/" target="_blank" rel="noopener noreferrer">Gamifier ↗</a><a href="https://www.instagram.com/viafronteira/" target="_blank" rel="noopener noreferrer">ViaFronteira ↗</a></div>
+      </section>
+
+      <section class="about-section about-hinge" id="repertoire" data-scene="hinge">
+        <header class="about-section__header about-reveal"><p class="eyebrow">{content.hinge.eyebrow}</p><h2>{content.hinge.title}</h2><div class="about-section__prose"><p id={paragraphId(content.hinge.body)} data-article-paragraph>{content.hinge.body}</p><p id={paragraphId(content.hinge.continuation)} data-article-paragraph>{content.hinge.continuation}</p></div></header><div class="about-tech-cloud">{content.hinge.oldTools.map((tool, index) => <span style={`--tech-size:${0.76 + index % 5 * 0.11}rem;--tech-shift:${index % 4 * 0.38}rem;--tech-opacity:${0.48 + index % 4 * 0.1}`}>{tool}</span>)}{content.hinge.newTools.map((tool, index) => <strong style={`--tech-size:${0.88 + index % 4 * 0.14}rem;--tech-shift:${index % 3 * 0.45}rem`}>{tool}</strong>)}</div>
+      </section>
+
+      <section class="about-section about-agents" id="agents" data-scene="agents">
+        <header class="about-section__header about-reveal"><p class="eyebrow">{content.agents.eyebrow}</p><h2>{content.agents.title}</h2><div class="about-section__prose"><p id={paragraphId(content.agents.body)} data-article-paragraph>{content.agents.body}</p><p id={paragraphId(content.agents.continuation)} data-article-paragraph>{content.agents.continuation}</p></div></header>
+        <div class="about-agent-grid about-agent-grid--links">{content.agents.cards.map((card, index) => <a class="about-agent-card about-reveal" href={card.href} target="_blank" rel="noopener noreferrer"><span>0{index + 1}</span><h3>{card.name}</h3><p id={paragraphId(card.body)} data-article-paragraph>{card.body}</p></a>)}</div>
+      </section>
+
+      <section class="about-section about-human about-human--cinematic" id="outside" data-scene="human">
+        <video class="about-studio-video" muted loop playsinline preload="metadata" poster="/media/about/studio-poster.webp" data-about-video><source src="/media/about/studio-full.mp4" type="video/mp4" /></video>
+        <div class="about-human__copy about-reveal"><p class="eyebrow">{content.human.eyebrow}</p><h2>{content.human.title}</h2><p id={paragraphId(content.human.body)} data-article-paragraph>{content.human.body}</p><strong>{content.human.music}</strong></div>
+      </section>
+
+      <section class="about-section about-closing" data-scene="closing">
+        <div class="about-closing__orb" aria-hidden="true"><i></i><i></i><i></i><b>digows</b></div><div class="about-closing__copy about-reveal"><p class="eyebrow">{content.closing.eyebrow}</p><h2>{content.closing.title}</h2><p id={paragraphId(content.closing.body)} data-article-paragraph>{content.closing.body}</p><div class="about-closing__links"><a href={getSiteRoutePath("contact", content.language)}>{content.closing.contact}<span aria-hidden="true">↗</span></a><a href={getSiteRoutePath("archive", content.language)}>{content.closing.writing}<span aria-hidden="true">→</span></a></div></div>
+      </section>
+    </div>
+
+    <div class="about-conversation"><Reactions contentId="page/about" language={content.language} subject="profile" /><Comments contentId="page/about" language={content.language} discussionPrompt={content.discussionPrompt} /></div>
+  </article>
+</div>
+
+<script>
+  import { AdditiveBlending, SRGBColorSpace } from "three/src/constants.js";
+  import { BufferAttribute } from "three/src/core/BufferAttribute.js";
+  import { BufferGeometry } from "three/src/core/BufferGeometry.js";
+  import { Timer } from "three/src/core/Timer.js";
+  import { IcosahedronGeometry } from "three/src/geometries/IcosahedronGeometry.js";
+  import { MeshBasicMaterial } from "three/src/materials/MeshBasicMaterial.js";
+  import { PointsMaterial } from "three/src/materials/PointsMaterial.js";
+  import { Color } from "three/src/math/Color.js";
+  import { Group } from "three/src/objects/Group.js";
+  import { Mesh } from "three/src/objects/Mesh.js";
+  import { Points } from "three/src/objects/Points.js";
+  import { WebGLRenderer } from "three/src/renderers/WebGLRenderer.js";
+  import { FogExp2 } from "three/src/scenes/FogExp2.js";
+  import { Scene } from "three/src/scenes/Scene.js";
+  import { PerspectiveCamera } from "three/src/cameras/PerspectiveCamera.js";
+
+  const root = document.querySelector<HTMLElement>("[data-about-experience]");
+  const canvas = root?.querySelector<HTMLCanvasElement>("[data-about-webgl]");
+  if (root !== null && root !== undefined)
+  {
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+    const revealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add("is-visible"); }), { rootMargin: "0px 0px -10% 0px", threshold: 0.05 });
+    root.querySelectorAll(".about-reveal").forEach((element) => revealObserver.observe(element));
+    const video = root.querySelector<HTMLVideoElement>("[data-about-video]");
+    if (video !== null && !reducedMotion && !saveData)
+    {
+      new IntersectionObserver((entries) => entries.forEach((entry) => entry.isIntersecting ? void video.play().catch(() => undefined) : video.pause()), { threshold: 0.15 }).observe(video);
+    }
+    addEventListener("pointermove", (event) => { const cursor = root.querySelector<HTMLElement>("[data-about-cursor]"); if (cursor !== null) cursor.style.transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0)`; }, { passive: true });
+    if (canvas !== null && canvas !== undefined && !reducedMotion)
+    {
+      try
+      {
+        const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+        renderer.outputColorSpace = SRGBColorSpace;
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
+        const scene = new Scene();
+        const camera = new PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 100);
+        camera.position.z = 13;
+        const world = new Group();
+        scene.add(world);
+        const core = new Mesh(new IcosahedronGeometry(2.1, 2), new MeshBasicMaterial({ color: 0x4f87ff, wireframe: true, transparent: true, opacity: 0.5 }));
+        world.add(core);
+        const positions = new Float32Array((innerWidth < 700 ? 350 : 800) * 3);
+        for (let index = 0; index < positions.length; index += 3)
+        {
+          const radius = 3 + Math.random() * 6;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          positions[index] = radius * Math.sin(phi) * Math.cos(theta);
+          positions[index + 1] = radius * Math.sin(phi) * Math.sin(theta);
+          positions[index + 2] = radius * Math.cos(phi);
+        }
+        const geometry = new BufferGeometry();
+        geometry.setAttribute("position", new BufferAttribute(positions, 3));
+        const particles = new Points(geometry, new PointsMaterial({ color: 0xc674ff, size: 0.04, transparent: true, opacity: 0.58, blending: AdditiveBlending, depthWrite: false }));
+        world.add(particles);
+        const palette = (): void => { const dark = document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches); scene.background = new Color(dark ? 0x090c0a : 0xedece6); scene.fog = new FogExp2(dark ? 0x090c0a : 0xedece6, 0.035); };
+        palette();
+        new MutationObserver(palette).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+        const resize = (): void => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false); };
+        addEventListener("resize", resize, { passive: true });
+        resize();
+        const timer = new Timer();
+        timer.connect(document);
+        const render = (): void => { timer.update(); const time = timer.getElapsed(); const progress = scrollY / Math.max(document.documentElement.scrollHeight - innerHeight, 1); world.rotation.y = time * 0.035 + progress * Math.PI * 2; world.rotation.x = Math.sin(time * 0.15) * 0.1; world.position.x = Math.sin(progress * Math.PI * 8) * 1.8; core.rotation.x = time * 0.1; particles.rotation.z = progress; renderer.render(scene, camera); requestAnimationFrame(render); };
+        render();
+      }
+      catch
+      {
+        canvas.hidden = true;
+      }
+    }
+  }
+</script>

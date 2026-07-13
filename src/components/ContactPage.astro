@@ -1,0 +1,30 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ContactForm from "./ContactForm.astro";
+import { contactPageContent } from "../content/pages/contact/content";
+import type { Locale } from "../i18n/locales";
+import { getSiteRouteAlternates, getSiteRoutePath } from "../i18n/routes";
+
+interface Props
+{
+  readonly language: Locale;
+}
+
+const { language } = Astro.props;
+const content = contactPageContent[language];
+---
+
+<BaseLayout
+  title={content.title}
+  description={content.description}
+  canonicalPath={getSiteRoutePath("contact", language)}
+  language={language}
+  alternates={getSiteRouteAlternates("contact")}
+>
+  <article class="contact-page">
+    <p class="eyebrow">{content.eyebrow}</p>
+    <h1>{content.heading}</h1>
+    <p class="contact-page__intro">{content.introduction}</p>
+    <ContactForm language={language} />
+  </article>
+</BaseLayout>

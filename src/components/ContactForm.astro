@@ -1,0 +1,161 @@
+---
+import type { Locale } from "../i18n/locales";
+import { getContactUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly language: Locale;
+}
+
+const { language } = Astro.props;
+const copy = getContactUiCopy(language);
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAADz2PsYYikXzdz0C";
+---
+
+<form class="contact-form" data-contact-form data-locale={language} data-copy={JSON.stringify(copy)}>
+  <div class="form-grid">
+    <label>{copy.name}<input name="name" autocomplete="name" minlength="2" maxlength="100" required /></label>
+    <label>{copy.email}<input name="email" type="email" autocomplete="email" maxlength="254" required /></label>
+  </div>
+  <label>{copy.website}<input name="website" autocomplete="url" inputmode="url" maxlength="500" /></label>
+  <label>{copy.message}<textarea name="message" rows="9" minlength="10" maxlength="10000" required></textarea></label>
+  <label class="honeypot" hidden>Company<input name="company" tabindex="-1" autocomplete="off" /></label>
+  <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="contact_submit" data-theme="auto" data-size="flexible"></div>
+  <p class="form-privacy">{copy.privacy}</p>
+  <div class="form-actions">
+    <button class="button" type="submit" data-submit-label={copy.submit} data-loading-label={copy.loading}>{copy.submit}</button>
+    <p class="form-status" data-form-status role="status"></p>
+  </div>
+</form>
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+  interface ContactCopy
+  {
+    readonly submit: string;
+    readonly loading: string;
+    readonly success: string;
+    readonly error: string;
+    readonly verification: string;
+    readonly verificationExpired: string;
+    readonly rateLimited: string;
+    readonly invalid: Readonly<Record<string, string>> & { readonly fallback: string };
+  }
+
+  const contactForms = document.querySelectorAll<HTMLFormElement>("[data-contact-form]");
+
+  for (const form of contactForms)
+  {
+    form.addEventListener("submit", async (event) =>
+    {
+      event.preventDefault();
+      const locale = form.dataset.locale ?? "en";
+      const copy = JSON.parse(form.dataset.copy ?? "{}") as ContactCopy;
+      const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+      const status = form.querySelector<HTMLElement>("[data-form-status]");
+      const turnstileInput = form.querySelector<HTMLInputElement>("input[name='cf-turnstile-response']");
+
+      if (submitButton === null || status === null)
+      {
+        return;
+      }
+
+      if (turnstileInput === null || turnstileInput.value === "")
+      {
+        status.textContent = copy.verification;
+        return;
+      }
+
+      const formData = new FormData(form);
+      submitButton.disabled = true;
+      submitButton.textContent = submitButton.dataset.loadingLabel ?? copy.loading;
+      status.textContent = "";
+
+      try
+      {
+        const response = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            name: formData.get("name"),
+            email: formData.get("email"),
+            website: formData.get("website"),
+            message: formData.get("message"),
+            company: formData.get("company"),
+            language: locale,
+            turnstileToken: turnstileInput.value,
+          }),
+        });
+
+        const result = await response.json() as {
+          readonly error?: string;
+          readonly fields?: readonly string[];
+        };
+
+        if (!response.ok)
+        {
+          resetTurnstile(form);
+
+          if (result.error === "turnstile_failed")
+          {
+            status.textContent = copy.verificationExpired;
+            return;
+          }
+
+          if (result.error === "invalid_submission")
+          {
+            status.textContent = invalidSubmissionMessage(copy, result.fields ?? []);
+            focusFirstInvalidField(form, result.fields ?? []);
+            return;
+          }
+
+          if (result.error === "rate_limited")
+          {
+            status.textContent = copy.rateLimited;
+            return;
+          }
+
+          throw new Error("Contact submission failed");
+        }
+
+        form.reset();
+        status.textContent = copy.success;
+        resetTurnstile(form);
+      }
+      catch
+      {
+        status.textContent = copy.error;
+      }
+      finally
+      {
+        submitButton.disabled = false;
+        submitButton.textContent = submitButton.dataset.submitLabel ?? copy.submit;
+      }
+    });
+  }
+
+  function resetTurnstile(form: HTMLFormElement): void
+  {
+    const turnstile = (window as Window & { turnstile?: { reset: (element?: HTMLElement) => void } }).turnstile;
+    turnstile?.reset(form.querySelector<HTMLElement>(".cf-turnstile") ?? undefined);
+  }
+
+  function focusFirstInvalidField(form: HTMLFormElement, fields: readonly string[]): void
+  {
+    const fieldName = fields.find((field) => field !== "language" && field !== "verification");
+
+    if (fieldName !== undefined)
+    {
+      form.querySelector<HTMLElement>(`[name='${fieldName}']`)?.focus();
+    }
+  }
+
+  function invalidSubmissionMessage(copy: ContactCopy, fields: readonly string[]): string
+  {
+    const field = fields[0];
+
+    return field !== undefined && field in copy.invalid
+      ? copy.invalid[field]
+      : copy.invalid.fallback;
+  }
+</script>

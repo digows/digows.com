@@ -1,0 +1,52 @@
+---
+import LanguageSwitcher from "./LanguageSwitcher.astro";
+import type { Locale } from "../i18n/locales";
+import { getSiteRouteAlternates, getSiteRoutePath, type LanguageAlternate } from "../i18n/routes";
+import { getGlobalUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly language: Locale;
+  readonly alternates?: readonly LanguageAlternate[];
+}
+
+const { language, alternates = [] } = Astro.props;
+const currentPath = Astro.url.pathname;
+const copy = getGlobalUiCopy(language);
+const aboutPath = getSiteRoutePath("about", language);
+const contactPath = getSiteRoutePath("contact", language);
+const homePath = getSiteRoutePath("home", language);
+const archivePath = getSiteRoutePath("archive", language);
+const languageAlternates = alternates.length > 0 ? alternates : getSiteRouteAlternates("home");
+---
+
+<a class="skip-link" href="#content">{copy.accessibility.skipToContent}</a>
+<header class="site-header">
+  <div class="site-header__identity">
+    <a class="site-title" href={homePath}>
+      <img src="/favicon.svg" width="44" height="44" alt="" />
+      <span>Rodrigo P. Fraga</span>
+    </a>
+    <p><a href={aboutPath}>{copy.site.strapline}<span aria-hidden="true"> →</span></a></p>
+  </div>
+  <div class="site-header__controls">
+    <nav class="site-header__navigation" aria-label={copy.navigation.primary}>
+      <a href={homePath} aria-current={currentPath === homePath ? "page" : undefined}>{copy.navigation.home}</a>
+      <a href={aboutPath} aria-current={currentPath === aboutPath ? "page" : undefined}>{copy.navigation.about}</a>
+      <a href={archivePath} aria-current={currentPath === archivePath ? "page" : undefined}>{copy.navigation.archive}</a>
+      <a href={contactPath} aria-current={currentPath === contactPath ? "page" : undefined}>{copy.navigation.contact}</a>
+    </nav>
+    <LanguageSwitcher language={language} alternates={languageAlternates} />
+    <div class="theme-switcher" role="group" aria-label={copy.theme.label}>
+      <button type="button" data-theme-value="system" aria-pressed="true" title={copy.theme.system}>
+        <span aria-hidden="true">◐</span><span class="sr-only">{copy.theme.system}</span>
+      </button>
+      <button type="button" data-theme-value="light" aria-pressed="false" title={copy.theme.light}>
+        <span aria-hidden="true">☀</span><span class="sr-only">{copy.theme.light}</span>
+      </button>
+      <button type="button" data-theme-value="dark" aria-pressed="false" title={copy.theme.dark}>
+        <span aria-hidden="true">●</span><span class="sr-only">{copy.theme.dark}</span>
+      </button>
+    </div>
+  </div>
+</header>

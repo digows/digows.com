@@ -1,0 +1,161 @@
+---
+import { defaultLocale, localeDefinitions, supportedLocales, type Locale } from "../i18n/locales";
+import { getSiteRoutePath, type LanguageAlternate } from "../i18n/routes";
+
+interface Props
+{
+  readonly title: string;
+  readonly seoTitle?: string;
+  readonly description: string;
+  readonly canonicalPath?: string;
+  readonly type?: "website" | "article" | "profile";
+  readonly publishedAt?: Date;
+  readonly updatedAt?: Date;
+  readonly language?: Locale;
+  readonly image?: string;
+  readonly categories?: readonly string[];
+  readonly tags?: readonly string[];
+  readonly alternates?: readonly LanguageAlternate[];
+  readonly noIndex?: boolean;
+}
+
+const {
+  title,
+  seoTitle,
+  description,
+  canonicalPath = Astro.url.pathname,
+  type = "website",
+  publishedAt,
+  updatedAt,
+  language = defaultLocale,
+  image = "/social/site.png",
+  categories = [],
+  tags = [],
+  alternates = [],
+  noIndex = false,
+} = Astro.props;
+
+const siteName = "Rodrigo P. Fraga";
+const canonicalUrl = new URL(canonicalPath, Astro.site);
+const pageTitle = seoTitle ?? (title === siteName || type === "article" ? title : `${title} | ${siteName}`);
+const imageUrl = new URL(image, Astro.site);
+const defaultHomePath = getSiteRoutePath("home", defaultLocale);
+const isHomePage = canonicalUrl.pathname === getSiteRoutePath("home", language);
+const personData = {
+  "@type": "Person",
+  "@id": new URL(`${getSiteRoutePath("about", defaultLocale)}#person`, Astro.site).href,
+  name: siteName,
+  url: new URL(getSiteRoutePath("about", defaultLocale), Astro.site).href,
+  image: new URL("/brand/digows-orbit.webp", Astro.site).href,
+  sameAs: [
+    "https://github.com/digows",
+    "https://www.linkedin.com/in/digows/",
+    "https://medium.com/@digows",
+    "https://www.instagram.com/digows",
+    "https://twitter.com/digows",
+  ],
+};
+const pageStructuredData = type === "article"
+  ? {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: title,
+      description,
+      inLanguage: language,
+      url: canonicalUrl.href,
+      mainEntityOfPage: canonicalUrl.href,
+      datePublished: publishedAt?.toISOString(),
+      dateModified: (updatedAt ?? publishedAt)?.toISOString(),
+      author: personData,
+      publisher: {
+        "@type": "Person",
+        name: siteName,
+        url: new URL(defaultHomePath, Astro.site).href,
+      },
+      isAccessibleForFree: true,
+      ...(categories.length > 0 && { articleSection: categories }),
+      ...(tags.length > 0 && { keywords: tags.join(", ") }),
+      image: imageUrl.href,
+    }
+  : type === "profile"
+  ? {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      name: title,
+      description,
+      inLanguage: language,
+      url: canonicalUrl.href,
+      mainEntity: personData,
+      isPartOf: {
+        "@type": "WebSite",
+        name: siteName,
+        url: new URL(defaultHomePath, Astro.site).href,
+      },
+    }
+  : {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: title,
+      description,
+      inLanguage: language,
+      url: canonicalUrl.href,
+      isPartOf: {
+        "@type": "WebSite",
+        name: siteName,
+        url: new URL(defaultHomePath, Astro.site).href,
+      },
+    };
+const structuredData = isHomePage
+  ? {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": new URL(`${defaultHomePath}#website`, Astro.site).href,
+          url: new URL(defaultHomePath, Astro.site).href,
+          name: siteName,
+          alternateName: "digows",
+          inLanguage: supportedLocales,
+          publisher: { "@id": personData["@id"] },
+        },
+        { ...pageStructuredData, "@context": undefined, isPartOf: { "@id": new URL(`${defaultHomePath}#website`, Astro.site).href } },
+        personData,
+      ],
+    }
+  : pageStructuredData;
+---
+
+<title>{pageTitle}</title>
+<meta name="description" content={description} />
+<meta name="author" content={siteName} />
+<meta name="robots" content={noIndex ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"} />
+<link rel="canonical" href={canonicalUrl} />
+{alternates.map((alternate) => <link rel="alternate" hreflang={alternate.language} href={new URL(alternate.path, Astro.site)} />)}
+<meta property="og:site_name" content={siteName} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:type" content={type} />
+<meta property="og:url" content={canonicalUrl} />
+<meta property="og:locale" content={localeDefinitions[language].openGraphLocale} />
+{type === "profile" && <meta property="profile:first_name" content="Rodrigo" />}
+{type === "profile" && <meta property="profile:last_name" content="Fraga" />}
+{alternates.filter((alternate): alternate is LanguageAlternate & { readonly language: Locale } => alternate.language !== language && alternate.language !== "x-default").map((alternate) => <meta property="og:locale:alternate" content={localeDefinitions[alternate.language].openGraphLocale} />)}
+<meta property="og:image" content={imageUrl} />
+<meta property="og:image:secure_url" content={imageUrl} />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={`${title} — digows.com`} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:creator" content="@digows" />
+<meta name="twitter:image" content={imageUrl} />
+<meta name="twitter:image:alt" content={`${title} — digows.com`} />
+{type === "article" && publishedAt !== undefined && <meta property="article:published_time" content={publishedAt.toISOString()} />}
+{type === "article" && (updatedAt ?? publishedAt) !== undefined && <meta property="article:modified_time" content={(updatedAt ?? publishedAt)?.toISOString()} />}
+{type === "article" && <meta property="article:author" content={new URL(getSiteRoutePath("about", defaultLocale), Astro.site)} />}
+{type === "article" && <link rel="author" href={new URL(getSiteRoutePath("about", language), Astro.site)} />}
+{categories.map((category) => <meta property="article:section" content={category} />)}
+{tags.map((tag) => <meta property="article:tag" content={tag} />)}
+<script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />

@@ -1,0 +1,7 @@
+TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"
+COMMENT_FINGERPRINT_SECRET="replace-with-at-least-32-random-characters"
+COMMENT_MODERATION_SECRET="replace-with-a-different-random-secret-of-at-least-32-characters"
+NOTIFICATION_EMAIL_DESTINATION="notifications@example.invalid"
+ENVIRONMENT="development"
+SITE_ORIGIN="http://localhost:8787"
+TURNSTILE_HOSTNAMES="localhost,127.0.0.1"

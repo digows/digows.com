@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Cloudflare binding types
+        run: pnpm run types:check
+
+      - name: Type-check site and Worker
+        run: pnpm run check
+
+      - name: Validate D1 migrations
+        run: pnpm run d1:migrate:local
+
+      - name: Build static site
+        run: pnpm run build
+
+      - name: Audit generated site
+        run: pnpm run audit
+
+      - name: Validate Cloudflare bundle
+        run: pnpm exec wrangler deploy --dry-run

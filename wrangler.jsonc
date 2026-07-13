@@ -1,0 +1,54 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "digows-com",
+  "compatibility_date": "2026-07-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/worker/index.ts",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "digows.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.digows.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "blog.digows.com",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "force-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "d1_databases": [
+    {
+      "binding": "SITE_DATABASE",
+      "database_name": "digows-com",
+      "database_id": "d63b19b4-3a8c-4f8d-bf48-0ce5a2a62d86",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "send_email": [
+    {
+      "name": "NOTIFICATION_EMAIL",
+      "allowed_sender_addresses": ["contact@digows.com"]
+    }
+  ],
+  "vars": {
+    "SITE_ORIGIN": "https://digows.com",
+    "TURNSTILE_HOSTNAMES": "digows.com,www.digows.com",
+    "NOTIFICATION_EMAIL_FROM": "contact@digows.com",
+    "ENVIRONMENT": "production"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

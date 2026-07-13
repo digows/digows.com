@@ -1,0 +1,50 @@
+---
+import type { CollectionEntry } from "astro:content";
+import type { Locale } from "../i18n/locales";
+import { getArticleInsightsUiCopy } from "../i18n/ui";
+import { getPostPath } from "../lib/posts";
+
+interface Props
+{
+  readonly editorial: NonNullable<CollectionEntry<"posts">["data"]["editorial"]>;
+  readonly language: Locale;
+  readonly relatedPosts: readonly CollectionEntry<"posts">[];
+}
+
+const { editorial, language, relatedPosts } = Astro.props;
+const copy = getArticleInsightsUiCopy(language);
+---
+
+<aside class="article-insights" aria-labelledby="article-insights-title">
+  <p class="eyebrow">{copy.heading}</p>
+  <h2 id="article-insights-title" class="article-insights__summary">{editorial.quickSummary}</h2>
+  <div class="article-insights__grid">
+    <section>
+      <h3>{copy.takeaways}</h3>
+      <ul>{editorial.keyTakeaways.map((item) => <li>{item}</li>)}</ul>
+    </section>
+    <section>
+      <h3>{copy.counterpoint}</h3>
+      <p>{editorial.strongestCounterargument}</p>
+    </section>
+    <section>
+      <h3>{copy.applies}</h3>
+      <ul>{editorial.appliesWhen.map((item) => <li>{item}</li>)}</ul>
+    </section>
+    <section>
+      <h3>{copy.notApplies}</h3>
+      <ul>{editorial.doesNotApplyWhen.map((item) => <li>{item}</li>)}</ul>
+    </section>
+  </div>
+  <details class="article-glossary">
+    <summary>{copy.glossary}</summary>
+    <dl>{editorial.glossary.map((item) => <><dt>{item.term}</dt><dd>{item.definition}</dd></>)}</dl>
+  </details>
+</aside>
+
+{relatedPosts.length > 0 && (
+  <nav class="related-posts" aria-label={copy.related}>
+    <p class="eyebrow">{copy.related}</p>
+    {relatedPosts.map((post) => <a href={getPostPath(post)}><span>{post.data.title}</span><span aria-hidden="true">→</span></a>)}
+  </nav>
+)}

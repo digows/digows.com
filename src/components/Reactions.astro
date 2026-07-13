@@ -1,0 +1,139 @@
+---
+import type { Locale } from "../i18n/locales";
+import { getReactionsUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly contentId: string;
+  readonly language: Locale;
+  readonly subject?: "article" | "profile";
+}
+const { contentId, language, subject = "article" } = Astro.props;
+const content = getReactionsUiCopy(language, subject);
+---
+
+<section class="reactions" data-reactions data-content-id={contentId} data-error={content.error}>
+  <p class="eyebrow">{content.heading}</p>
+  <p>{content.description}</p>
+  <div class="reaction-list">
+    {Object.entries(content.reactions).map(([type, label]) => (
+      <button type="button" data-reaction-type={type} aria-pressed="false"><span>{label}</span><strong data-count>0</strong></button>
+    ))}
+  </div>
+  <p class="form-status" data-reaction-status role="status"></p>
+</section>
+
+<script>
+  import { readLocalStorage, writeLocalStorage } from "../lib/browser-storage";
+
+  type ReactionType = "apply" | "perspective" | "disagree" | "follow_up";
+  interface ReactionsResponse { readonly counts: Record<ReactionType, number>; readonly selected: readonly ReactionType[]; }
+  const reactionTypes: readonly ReactionType[] = ["apply", "perspective", "disagree", "follow_up"];
+  const visitorStorageKey = "digows.visitor-id";
+
+  for (const root of document.querySelectorAll<HTMLElement>("[data-reactions]"))
+  {
+    void initializeReactions(root);
+  }
+
+  async function initializeReactions(root: HTMLElement): Promise<void>
+  {
+    const contentId = root.dataset.contentId;
+    if (contentId === undefined) return;
+    const visitorId = getVisitorId();
+    const status = root.querySelector<HTMLElement>("[data-reaction-status]");
+    try
+    {
+      const url = new URL("/api/reactions", location.origin);
+      url.searchParams.set("content", contentId);
+      url.searchParams.set("visitor", visitorId);
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("Reaction API unavailable");
+      const state = parseReactionsResponse(await response.json());
+      if (state === null) throw new Error("Invalid reaction API response");
+      renderReactions(root, state);
+    }
+    catch
+    {
+      if (status !== null) status.textContent = root.dataset.error ?? "";
+    }
+
+    root.addEventListener("click", async (event) =>
+    {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("[data-reaction-type]") : null;
+      if (button === null || button.disabled) return;
+      const reactionType = button.dataset.reactionType;
+      if (!isReactionType(reactionType)) return;
+      const active = button.getAttribute("aria-pressed") !== "true";
+      button.disabled = true;
+      if (status !== null) status.textContent = "";
+      try
+      {
+        const response = await fetch("/api/reactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ contentId, reactionType, visitorId, active }),
+        });
+        if (!response.ok) throw new Error("Reaction save failed");
+        const state = parseReactionsResponse(await response.json());
+        if (state === null) throw new Error("Invalid reaction API response");
+        renderReactions(root, state);
+      }
+      catch
+      {
+        if (status !== null) status.textContent = root.dataset.error ?? "";
+      }
+      finally
+      {
+        button.disabled = false;
+      }
+    });
+  }
+
+  function renderReactions(root: HTMLElement, state: ReactionsResponse): void
+  {
+    for (const button of root.querySelectorAll<HTMLButtonElement>("[data-reaction-type]"))
+    {
+      const type = button.dataset.reactionType;
+      if (!isReactionType(type)) continue;
+      button.setAttribute("aria-pressed", `${state.selected.includes(type)}`);
+      const count = button.querySelector<HTMLElement>("[data-count]");
+      if (count !== null) count.textContent = `${state.counts[type] ?? 0}`;
+    }
+  }
+
+  function getVisitorId(): string
+  {
+    const current = readLocalStorage(visitorStorageKey);
+    if (current !== null && isUuid(current)) return current;
+    const created = crypto.randomUUID();
+    writeLocalStorage(visitorStorageKey, created);
+    return created;
+  }
+
+  function parseReactionsResponse(value: unknown): ReactionsResponse | null
+  {
+    if (typeof value !== "object" || value === null) return null;
+    const rawCounts = Reflect.get(value, "counts");
+    const rawSelected = Reflect.get(value, "selected");
+    if (typeof rawCounts !== "object" || rawCounts === null || !Array.isArray(rawSelected) || !rawSelected.every(isReactionType)) return null;
+
+    const counts = Object.fromEntries(reactionTypes.map((reactionType) =>
+    {
+      const count = Reflect.get(rawCounts, reactionType);
+      return [reactionType, typeof count === "number" && Number.isInteger(count) && count >= 0 ? count : 0];
+    })) as Record<ReactionType, number>;
+
+    return { counts, selected: rawSelected };
+  }
+
+  function isReactionType(value: unknown): value is ReactionType
+  {
+    return typeof value === "string" && reactionTypes.some((reactionType) => reactionType === value);
+  }
+
+  function isUuid(value: string): boolean
+  {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
+  }
+</script>

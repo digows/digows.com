@@ -1,0 +1,28 @@
+---
+import AboutExperience from "./AboutExperience.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { aboutContent } from "../content/pages/about/content";
+import type { Locale } from "../i18n/locales";
+import { getSiteRouteAlternates, getSiteRoutePath } from "../i18n/routes";
+
+interface Props
+{
+  readonly locale: Locale;
+}
+
+const { locale } = Astro.props;
+const content = aboutContent[locale];
+---
+
+<BaseLayout
+  title="Rodrigo P. Fraga"
+  seoTitle={content.seoTitle}
+  description={content.seoDescription}
+  canonicalPath={getSiteRoutePath("about", locale)}
+  language={locale}
+  type="profile"
+  alternates={getSiteRouteAlternates("about")}
+  immersive
+>
+  <AboutExperience content={content} />
+</BaseLayout>
