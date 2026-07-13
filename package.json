@@ -9,9 +9,10 @@
   },
   "scripts": {
     "i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --emit-ts-declarations",
-    "dev": "pnpm run generate:social-images && astro dev",
-    "build": "pnpm run generate:social-images && astro build",
-    "build:local": "pnpm run generate:social-images && PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA astro build",
+    "clean:metadata": "tsx scripts/remove-finder-metadata.ts",
+    "dev": "pnpm run clean:metadata && pnpm run generate:social-images && astro dev",
+    "build": "pnpm run clean:metadata && pnpm run generate:social-images && astro build",
+    "build:local": "pnpm run clean:metadata && pnpm run generate:social-images && PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA astro build",
     "generate:social-images": "tsx scripts/generate-social-images.ts",
     "audit": "tsx scripts/audit-built-site.ts",
     "check": "pnpm run check:site && pnpm run check:worker",
