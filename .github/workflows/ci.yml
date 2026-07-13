@@ -36,6 +36,9 @@ jobs:
       - name: Type-check site and Worker
         run: pnpm run check
 
+      - name: Run tests
+        run: pnpm run test
+
       - name: Validate D1 migrations
         run: pnpm run d1:migrate:local
 

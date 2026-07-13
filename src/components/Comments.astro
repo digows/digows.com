@@ -1,6 +1,7 @@
 ---
 import type { Locale } from "../i18n/locales";
 import { getCommentsUiCopy } from "../i18n/ui";
+import { newsletterConsentVersion } from "../worker/newsletter/contracts";
 
 interface Props
 {
@@ -14,7 +15,7 @@ const copy = getCommentsUiCopy(language);
 const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAADz2PsYYikXzdz0C";
 ---
 
-<section class="comments" id="comments" data-comments-root data-content-id={contentId} data-locale={language} data-copy={JSON.stringify(copy)}>
+<section class="comments" id="comments" data-comments-root data-content-id={contentId} data-locale={language} data-consent-version={newsletterConsentVersion} data-copy={JSON.stringify(copy)}>
   <header class="comments__header">
     <p class="eyebrow">{copy.heading}</p>
     <h2 data-comments-count>{copy.loadingComments}</h2>
@@ -47,6 +48,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       <label>{copy.website}<input name="authorUrl" autocomplete="url" inputmode="url" maxlength="500" /></label>
     </div>
     <label>{copy.message}<textarea name="body" rows="6" minlength="3" maxlength="5000" required></textarea></label>
+    <label class="form-opt-in"><input name="newsletterOptIn" type="checkbox" data-newsletter-opt-in /><span>{copy.newsletterOptIn}</span></label>
+    <label data-newsletter-email hidden>{copy.newsletterEmail}<input name="newsletterEmail" type="email" autocomplete="email" maxlength="254" /></label>
     <label class="honeypot" hidden>Website<input name="website" tabindex="-1" autocomplete="off" /></label>
     <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="comment_submit" data-theme="auto" data-size="flexible"></div>
     <div class="form-actions">
@@ -72,6 +75,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     readonly unavailableRetry: string;
     readonly verification: string;
     readonly verificationExpired: string;
+    readonly newsletterConfirmationNote: string;
+    readonly newsletterUnavailableNote: string;
   }
 
   interface PublicComment
@@ -156,6 +161,9 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       event.preventDefault();
       await submitComment(form, contentId, locale, copy);
     });
+
+    const newsletterOptIn = form.querySelector<HTMLInputElement>("[data-newsletter-opt-in]");
+    newsletterOptIn?.addEventListener("change", () => updateNewsletterEmailField(form, newsletterOptIn.checked));
 
     try
     {
@@ -334,6 +342,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     }
 
     const formData = new FormData(form);
+    const newsletterOptIn = formData.get("newsletterOptIn") === "on";
     submitButton.disabled = true;
     submitButton.textContent = submitButton.dataset.loadingLabel ?? "Submitting…";
     status.textContent = "";
@@ -356,10 +365,17 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
           discussionPromptKey: formData.get("discussionPromptKey") || undefined,
           website: formData.get("website"),
           turnstileToken: turnstileInput.value,
+          newsletterOptIn,
+          newsletterEmail: newsletterOptIn ? formData.get("newsletterEmail") : undefined,
+          newsletterConsentVersion: form.closest<HTMLElement>("[data-comments-root]")?.dataset.consentVersion,
+          sourcePath: window.location.pathname,
         }),
       });
 
-      const result = await response.json() as { readonly error?: string };
+      const result = await response.json() as {
+        readonly error?: string;
+        readonly newsletter?: "accepted" | "unavailable";
+      };
 
       if (!response.ok)
       {
@@ -376,7 +392,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       form.reset();
       setReply(form, "", "");
       setAnchor(form, "", "", locale);
-      status.textContent = copy.pending;
+      const newsletterNote = result.newsletter === "accepted"
+        ? copy.newsletterConfirmationNote
+        : result.newsletter === "unavailable" ? copy.newsletterUnavailableNote : "";
+      status.textContent = newsletterNote === "" ? copy.pending : `${copy.pending} ${newsletterNote}`;
+      updateNewsletterEmailField(form, false);
       window.turnstile?.reset(form.querySelector<HTMLElement>(".cf-turnstile") ?? undefined);
     }
     catch
@@ -387,6 +407,25 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     {
       submitButton.disabled = false;
       submitButton.textContent = submitButton.dataset.submitLabel ?? copy.submit;
+    }
+  }
+
+  function updateNewsletterEmailField(form: HTMLFormElement, enabled: boolean): void
+  {
+    const field = form.querySelector<HTMLElement>("[data-newsletter-email]");
+    const input = field?.querySelector<HTMLInputElement>("input[name='newsletterEmail']");
+
+    if (field === null || field === undefined || input === null || input === undefined)
+    {
+      return;
+    }
+
+    field.hidden = !enabled;
+    input.required = enabled;
+
+    if (!enabled)
+    {
+      input.value = "";
     }
   }
 </script>

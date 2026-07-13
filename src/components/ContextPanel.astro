@@ -4,6 +4,7 @@ import { getTopicPath, topics } from "../data/topics";
 import { getLocaleUrlSegment, type Locale } from "../i18n/locales";
 import { getSiteRoutePath } from "../i18n/routes";
 import { getContextPanelUiCopy, getGlobalUiCopy } from "../i18n/ui";
+import NewsletterSignup from "./NewsletterSignup.astro";
 
 interface Props
 {
@@ -12,9 +13,10 @@ interface Props
     readonly readingMinutes: number;
     readonly headings: readonly { readonly depth: number; readonly slug: string; readonly text: string }[];
   };
+  readonly showNewsletterSignup?: boolean;
 }
 
-const { language, articleContext } = Astro.props;
+const { language, articleContext, showNewsletterSignup = false } = Astro.props;
 const profilePath = getSiteRoutePath("about", language);
 const content = getContextPanelUiCopy(language, articleContext?.readingMinutes);
 const articleCopy = content.reading;
@@ -32,7 +34,13 @@ const socialLinks = [
 ] as const;
 ---
 
-<aside class="context-panel" aria-label={articleContext ? articleCopy.label : content.about}>
+<aside
+  class:list={[
+    "context-panel",
+    { "context-panel--article": articleContext !== undefined, "context-panel--site": articleContext === undefined },
+  ]}
+  aria-label={articleContext ? articleCopy.label : content.about}
+>
   {articleContext ? (
     <>
       <section class="context-card context-reading-status">
@@ -74,5 +82,13 @@ const socialLinks = [
     </ul>
   </section>
     </>
+  )}
+  {showNewsletterSignup && (
+    <NewsletterSignup
+      language={language}
+      source={articleContext === undefined ? "home" : "article"}
+      compact
+      panel
+    />
   )}
 </aside>

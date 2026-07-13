@@ -3,10 +3,11 @@ import type { GetStaticPaths } from "astro";
 import ArchivePage from "../../components/ArchivePage.astro";
 import AboutPage from "../../components/AboutPage.astro";
 import ContactPage from "../../components/ContactPage.astro";
+import NewsletterPage from "../../components/NewsletterPage.astro";
 import { getLocaleUrlSegment, supportedLocales, type Locale } from "../../i18n/locales";
 import { getSiteRouteSlug, type SiteRouteKey } from "../../i18n/routes";
 
-type SupportedPageRoute = Extract<SiteRouteKey, "about" | "archive" | "contact">;
+type SupportedPageRoute = Extract<SiteRouteKey, "about" | "archive" | "contact" | "newsletter">;
 
 interface PageProps
 {
@@ -16,7 +17,7 @@ interface PageProps
 
 export const getStaticPaths = (() =>
 {
-  const supportedPageRoutes: readonly SupportedPageRoute[] = ["about", "archive", "contact"];
+  const supportedPageRoutes: readonly SupportedPageRoute[] = ["about", "archive", "contact", "newsletter"];
 
   return supportedLocales.flatMap((locale) => supportedPageRoutes.map((route) => ({
     params: {
@@ -34,4 +35,6 @@ const { locale, route } = Astro.props as PageProps;
   ? <AboutPage locale={locale} />
   : route === "archive"
     ? <ArchivePage language={locale} />
-    : <ContactPage language={locale} />}
+    : route === "contact"
+      ? <ContactPage language={locale} />
+      : <NewsletterPage language={locale} />}

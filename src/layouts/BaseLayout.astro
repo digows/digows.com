@@ -4,7 +4,7 @@ import ContextPanel from "../components/ContextPanel.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import Icon from "../components/Icon.astro";
 import { defaultLocale, getLocaleUrlSegment, localeDefinitions, supportedLocales, type Locale } from "../i18n/locales";
-import type { LanguageAlternate } from "../i18n/routes";
+import { getSiteRoutePath, type LanguageAlternate } from "../i18n/routes";
 import { getGlobalUiCopy } from "../i18n/ui";
 import "../styles/global.css";
 
@@ -28,6 +28,7 @@ interface Props
   };
   readonly immersive?: boolean;
   readonly landing?: boolean;
+  readonly showNewsletterSignupInContextPanel?: boolean;
   readonly noIndex?: boolean;
 }
 
@@ -62,6 +63,32 @@ const copy = getGlobalUiCopy(language);
         catch {}
       })();
     </script>
+    <script is:inline>
+      (() => {
+        try
+        {
+          const url = new URL(window.location.href);
+          const fragmentParameters = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : "");
+          const token = url.searchParams.get("token") ?? fragmentParameters.get("confirm");
+
+          if (token !== null && /^[A-Za-z0-9_-]{43}$/u.test(token))
+          {
+            const currentState = typeof window.history.state === "object" && window.history.state !== null
+              ? window.history.state
+              : {};
+            url.searchParams.delete("token");
+            fragmentParameters.delete("confirm");
+            url.hash = fragmentParameters.size > 0 ? fragmentParameters.toString() : "";
+            window.history.replaceState(
+              { ...currentState, digowsNewsletterConfirmationToken: token },
+              "",
+              `${url.pathname}${url.search}${url.hash}`,
+            );
+          }
+        }
+        catch {}
+      })();
+    </script>
     <SeoHead {...props} />
     <!-- Google tag (gtag.js) -->
     <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-HT2YR180C1"></script>
@@ -83,12 +110,21 @@ const copy = getGlobalUiCopy(language);
         <main id="content">
           <slot />
         </main>
-        {!props.immersive && <ContextPanel language={language} articleContext={props.articleContext} />}
+        {!props.immersive && (
+          <ContextPanel
+            language={language}
+            articleContext={props.articleContext}
+            showNewsletterSignup={
+              props.showNewsletterSignupInContextPanel ?? true
+            }
+          />
+        )}
       </div>
     </div>
     <footer class="site-footer">
       <p>© {new Date().getFullYear()} Rodrigo P. Fraga.</p>
       <nav aria-label={copy.footer.siteLinks}>
+        <a href={getSiteRoutePath("newsletter", language)}><Icon name="mail" />{copy.navigation.newsletter}</a>
         <a href={`/${getLocaleUrlSegment(language)}/rss.xml`}><Icon name="rss" />RSS</a>
         <a href="https://github.com/digows/digows.com" target="_blank" rel="noopener noreferrer"><Icon name="code" />{copy.footer.source}</a>
       </nav>

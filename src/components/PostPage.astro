@@ -6,6 +6,7 @@ import ArticleInsights from "./ArticleInsights.astro";
 import Comments from "./Comments.astro";
 import IflessExperience from "./IflessExperience.astro";
 import Reactions from "./Reactions.astro";
+import NewsletterSignup from "./NewsletterSignup.astro";
 import { calculateReadingMinutes, formatPublishedDate } from "../i18n/formatting";
 import { getSiteRoutePath, type LanguageAlternate } from "../i18n/routes";
 import { getPostPageUiCopy } from "../i18n/ui";
@@ -78,6 +79,7 @@ const publicationDate = getPostPublicationDate(post);
     </div>
     {post.data.editorial && <ArticleInsights editorial={post.data.editorial} language={post.data.language} relatedPosts={relatedPosts} />}
     {post.data.editorial?.interactiveExperience === "find-hidden-decision" && <IflessExperience language={post.data.language} />}
+    <NewsletterSignup language={post.data.language} source="article" compact />
     <Reactions contentId={post.data.translationKey} language={post.data.language} />
     <Comments contentId={post.data.translationKey} language={post.data.language} discussionPrompt={post.data.editorial?.discussionPrompt} />
   </article>

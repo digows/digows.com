@@ -8,7 +8,7 @@ export async function verifyTurnstile(
   environment: Environment,
   token: string,
   idempotencyKey: string,
-  expectedAction: "comment_submit" | "contact_submit",
+  expectedAction: "comment_submit" | "contact_submit" | "newsletter_subscribe",
 ): Promise<boolean>
 {
   const formData = new FormData();

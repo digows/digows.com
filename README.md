@@ -2,7 +2,7 @@
 
 Source code and published content for [digows.com](https://digows.com), a multilingual site about software engineering, architecture, distributed systems, cloud, and AI agents.
 
-The site is generated with Astro and deployed to Cloudflare Workers. Articles are static; comments, reactions, and contact messages use a small Worker API backed by Cloudflare D1.
+The site is generated with Astro and deployed to Cloudflare Workers. Articles are static; comments, reactions, contact messages, and double-opt-in newsletter state use a small Worker API backed by Cloudflare D1.
 
 ## Highlights
 
@@ -11,6 +11,7 @@ The site is generated with Astro and deployed to Cloudflare Workers. Articles ar
 - RSS, sitemap, structured data, social metadata, and optimized static output.
 - System-aware light and dark themes.
 - Moderated comments, article reactions, and a private contact form.
+- A localized, double-opt-in newsletter powered by Resend.
 - Cloudflare Turnstile protection and email notifications.
 - Reading progress, focus mode, text-to-speech, bookmarks, sharing, and paragraph-level interactions.
 
@@ -21,6 +22,7 @@ The site is generated with Astro and deployed to Cloudflare Workers. Articles ar
 - Cloudflare Workers and Static Assets for production hosting and APIs.
 - Cloudflare D1 for dynamic site data.
 - Cloudflare Turnstile for abuse protection.
+- Resend for confirmation email, audience preferences, and broadcasts.
 - GitHub Actions for validation.
 - Cloudflare Workers Builds for production deployment.
 
@@ -81,7 +83,7 @@ src/content/posts/2025-09-02-the-ifless-principle-designing-apis-without-hidden-
 └── zh-Hans.md
 ```
 
-Every file shares a `translationKey`; translated editions reference the source through `translationOf` and own their localized slug. Canonical URLs use `/{locale}/{year}/{month}/{day}/{localized-slug}/`. The Worker redirects only the finite set of previously indexed, unprefixed English and Portuguese URLs.
+Every file shares a `translationKey`; translated editions reference the source through `translationOf` and own their localized slug. Canonical URLs use `/{locale}/{year}/{month}/{day}/{localized-slug}/`. Static Asset redirect rules preserve the finite set of previously indexed, unprefixed English and Portuguese URLs without spending Worker invocations on redirect logic.
 
 Reusable interface labels live in Paraglide bundles under `messages/`; narrative page content remains typed and colocated under `src/content/pages/`. Read [Content and localization architecture](docs/content-architecture.md) for ownership, URL, preference, asset, SEO, and social-data conventions.
 
@@ -92,6 +94,7 @@ Run the same checks used by CI:
 ```bash
 pnpm run types:check
 pnpm run check
+pnpm run test
 pnpm run build
 pnpm run audit
 pnpm exec wrangler deploy --dry-run

@@ -1,6 +1,7 @@
 ---
 import type { Locale } from "../i18n/locales";
 import { getContactUiCopy } from "../i18n/ui";
+import { newsletterConsentVersion } from "../worker/newsletter/contracts";
 
 interface Props
 {
@@ -12,13 +13,14 @@ const copy = getContactUiCopy(language);
 const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAADz2PsYYikXzdz0C";
 ---
 
-<form class="contact-form" data-contact-form data-locale={language} data-copy={JSON.stringify(copy)}>
+<form class="contact-form" data-contact-form data-locale={language} data-consent-version={newsletterConsentVersion} data-copy={JSON.stringify(copy)}>
   <div class="form-grid">
     <label>{copy.name}<input name="name" autocomplete="name" minlength="2" maxlength="100" required /></label>
     <label>{copy.email}<input name="email" type="email" autocomplete="email" maxlength="254" required /></label>
   </div>
   <label>{copy.website}<input name="website" autocomplete="url" inputmode="url" maxlength="500" /></label>
   <label>{copy.message}<textarea name="message" rows="9" minlength="10" maxlength="10000" required></textarea></label>
+  <label class="form-opt-in"><input name="newsletterOptIn" type="checkbox" /><span>{copy.newsletterOptIn}</span></label>
   <label class="honeypot" hidden>Company<input name="company" tabindex="-1" autocomplete="off" /></label>
   <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="contact_submit" data-theme="auto" data-size="flexible"></div>
   <p class="form-privacy">{copy.privacy}</p>
@@ -39,6 +41,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     readonly verification: string;
     readonly verificationExpired: string;
     readonly rateLimited: string;
+    readonly newsletterConfirmationNote: string;
+    readonly newsletterUnavailableNote: string;
     readonly invalid: Readonly<Record<string, string>> & { readonly fallback: string };
   }
 
@@ -67,6 +71,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       }
 
       const formData = new FormData(form);
+      const newsletterOptIn = formData.get("newsletterOptIn") === "on";
       submitButton.disabled = true;
       submitButton.textContent = submitButton.dataset.loadingLabel ?? copy.loading;
       status.textContent = "";
@@ -84,12 +89,16 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
             company: formData.get("company"),
             language: locale,
             turnstileToken: turnstileInput.value,
+            newsletterOptIn,
+            newsletterConsentVersion: form.dataset.consentVersion,
+            sourcePath: window.location.pathname,
           }),
         });
 
         const result = await response.json() as {
           readonly error?: string;
           readonly fields?: readonly string[];
+          readonly newsletter?: "accepted" | "unavailable";
         };
 
         if (!response.ok)
@@ -119,7 +128,10 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
         }
 
         form.reset();
-        status.textContent = copy.success;
+        const newsletterNote = result.newsletter === "accepted"
+          ? copy.newsletterConfirmationNote
+          : result.newsletter === "unavailable" ? copy.newsletterUnavailableNote : "";
+        status.textContent = newsletterNote === "" ? copy.success : `${copy.success} ${newsletterNote}`;
         resetTurnstile(form);
       }
       catch

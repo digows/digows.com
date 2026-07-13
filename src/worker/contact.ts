@@ -4,6 +4,11 @@ import { isSameOrigin, jsonResponse, methodNotAllowed } from "./http";
 import { sendContactNotification } from "./notifications";
 import { createSubmissionFingerprint } from "./security";
 import { verifyTurnstile } from "./turnstile";
+import { newsletterConsentVersion } from "./newsletter/contracts";
+import {
+  normalizeNewsletterSourcePath,
+  requestNewsletterSubscription,
+} from "./newsletter/service";
 
 const maximumRequestBytes = 24_576;
 const abuseWindowMilliseconds = 60 * 60 * 1000;
@@ -18,6 +23,9 @@ interface ContactSubmission
   readonly language?: unknown;
   readonly turnstileToken?: unknown;
   readonly company?: unknown;
+  readonly newsletterOptIn?: unknown;
+  readonly newsletterConsentVersion?: unknown;
+  readonly sourcePath?: unknown;
 }
 
 interface ValidatedContactSubmission
@@ -28,11 +36,15 @@ interface ValidatedContactSubmission
   readonly message: string;
   readonly language: Locale;
   readonly turnstileToken: string;
+  readonly newsletterOptIn: boolean;
+  readonly sourcePath: string | null;
 }
 
 type ContactSubmissionValidation =
   | { readonly valid: true; readonly submission: ValidatedContactSubmission }
   | { readonly valid: false; readonly invalidFields: readonly string[] };
+
+type NewsletterOptInPublicStatus = "accepted" | "unavailable";
 
 export async function handleContactRequest(
   request: Request,
@@ -170,7 +182,35 @@ export async function handleContactRequest(
     createdAt: now,
   }));
 
-  return acceptedResponse();
+  let newsletterStatus: NewsletterOptInPublicStatus | undefined;
+
+  if (validatedSubmission.newsletterOptIn && validatedSubmission.sourcePath !== null)
+  {
+    try
+    {
+      const result = await requestNewsletterSubscription(environment, {
+        email: validatedSubmission.email,
+        locale: validatedSubmission.language,
+        source: "contact",
+        sourcePath: validatedSubmission.sourcePath,
+        consentVersion: newsletterConsentVersion,
+        submissionFingerprint,
+      });
+      newsletterStatus = result.status === "rate_limited" || result.status === "suppressed"
+        ? "unavailable"
+        : "accepted";
+    }
+    catch (error)
+    {
+      newsletterStatus = "unavailable";
+      console.error(JSON.stringify({
+        event: "contact_newsletter_opt_in_failed",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      }));
+    }
+  }
+
+  return acceptedResponse(newsletterStatus);
 }
 
 function validateSubmission(submission: ContactSubmission): ContactSubmissionValidation
@@ -181,6 +221,8 @@ function validateSubmission(submission: ContactSubmission): ContactSubmissionVal
   const website = normalizeWebsite(submission.website);
   const language = isLocale(submission.language) ? submission.language : null;
   const turnstileToken = typeof submission.turnstileToken === "string" ? submission.turnstileToken.trim() : "";
+  const newsletterOptIn = submission.newsletterOptIn === true;
+  const sourcePath = newsletterOptIn ? normalizeNewsletterSourcePath(submission.sourcePath) : null;
   const invalidFields: string[] = [];
 
   if (name.length < 2 || name.length > 100)
@@ -213,6 +255,22 @@ function validateSubmission(submission: ContactSubmission): ContactSubmissionVal
     invalidFields.push("verification");
   }
 
+  if (
+    submission.newsletterOptIn !== undefined
+    && typeof submission.newsletterOptIn !== "boolean"
+  )
+  {
+    invalidFields.push("newsletter");
+  }
+
+  if (
+    newsletterOptIn
+    && (submission.newsletterConsentVersion !== newsletterConsentVersion || sourcePath === null)
+  )
+  {
+    invalidFields.push("newsletter");
+  }
+
   if (invalidFields.length > 0 || website === undefined || language === null)
   {
     return { valid: false, invalidFields };
@@ -220,7 +278,16 @@ function validateSubmission(submission: ContactSubmission): ContactSubmissionVal
 
   return {
     valid: true,
-    submission: { name, email, website, message, language, turnstileToken },
+    submission: {
+      name,
+      email,
+      website,
+      message,
+      language,
+      turnstileToken,
+      newsletterOptIn,
+      sourcePath,
+    },
   };
 }
 
@@ -266,10 +333,13 @@ function normalizeWebsite(value: unknown): string | null | undefined
   }
 }
 
-function acceptedResponse(): Response
+function acceptedResponse(newsletterStatus?: NewsletterOptInPublicStatus): Response
 {
   return jsonResponse(
-    { accepted: true },
+    {
+      accepted: true,
+      ...(newsletterStatus === undefined ? {} : { newsletter: newsletterStatus }),
+    },
     202,
     { "Cache-Control": "no-store" },
   );

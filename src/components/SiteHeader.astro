@@ -17,6 +17,7 @@ const aboutPath = getSiteRoutePath("about", language);
 const contactPath = getSiteRoutePath("contact", language);
 const homePath = getSiteRoutePath("home", language);
 const archivePath = getSiteRoutePath("archive", language);
+const newsletterPath = getSiteRoutePath("newsletter", language);
 const languageAlternates = alternates.length > 0 ? alternates : getSiteRouteAlternates("home");
 ---
 
@@ -34,6 +35,7 @@ const languageAlternates = alternates.length > 0 ? alternates : getSiteRouteAlte
       <a href={homePath} aria-current={currentPath === homePath ? "page" : undefined}>{copy.navigation.home}</a>
       <a href={aboutPath} aria-current={currentPath === aboutPath ? "page" : undefined}>{copy.navigation.about}</a>
       <a href={archivePath} aria-current={currentPath === archivePath ? "page" : undefined}>{copy.navigation.archive}</a>
+      <a href={newsletterPath} aria-current={currentPath === newsletterPath ? "page" : undefined}>{copy.navigation.newsletter}</a>
       <a href={contactPath} aria-current={currentPath === contactPath ? "page" : undefined}>{copy.navigation.contact}</a>
     </nav>
     <LanguageSwitcher language={language} alternates={languageAlternates} />

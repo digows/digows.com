@@ -5,7 +5,7 @@ import {
   type Locale,
 } from "./locales";
 
-export type SiteRouteKey = "home" | "about" | "archive" | "contact";
+export type SiteRouteKey = "home" | "about" | "archive" | "contact" | "newsletter";
 
 const routeSlugs: Readonly<Record<Exclude<SiteRouteKey, "home">, Readonly<Record<Locale, string>>>> = {
   about: {
@@ -28,6 +28,13 @@ const routeSlugs: Readonly<Record<Exclude<SiteRouteKey, "home">, Readonly<Record
     es: "contacto",
     fr: "contact",
     "zh-Hans": "联系",
+  },
+  newsletter: {
+    en: "newsletter",
+    "pt-BR": "newsletter",
+    es: "boletin",
+    fr: "lettre",
+    "zh-Hans": "通讯",
   },
 };
 

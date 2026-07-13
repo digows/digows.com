@@ -3,7 +3,6 @@ import path from "node:path";
 import { parse } from "yaml";
 import { aboutContent } from "../src/content/pages/about/content";
 import { getLocaleUrlSegment, supportedLocales, type Locale } from "../src/i18n/locales";
-import { legacyRedirects } from "../src/worker/legacy-redirects";
 
 interface PostRecord
 {
@@ -19,8 +18,10 @@ interface PostRecord
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const postsDirectory = path.join(projectRoot, "src/content/posts");
 const distributionDirectory = path.join(projectRoot, "dist");
+const staticRedirectsPath = path.join(projectRoot, "public/_redirects");
 const siteOrigin = "https://digows.com";
 const errors: string[] = [];
+const legacyRedirects = await loadStaticRedirects();
 const postRecords = await loadPostRecords();
 const postGroups = Map.groupBy(postRecords, (post) => post.translationKey);
 
@@ -113,6 +114,11 @@ for (const [translationKey, posts] of postGroups)
     if (!html.includes("data-article-actions") || !html.includes("data-reactions"))
     {
       errors.push(`${post.filename} is missing the global article experience`);
+    }
+
+    if (!html.includes('data-newsletter-root data-locale=') || !html.includes('data-source="article"'))
+    {
+      errors.push(`${post.filename} is missing the article newsletter panel`);
     }
 
     const expectedPublicationDate = post.permalink.slice(0, 10).replaceAll("/", "-");
@@ -319,6 +325,75 @@ async function loadPostRecords(): Promise<PostRecord[]>
       ...(translationOf === undefined ? {} : { translationOf }),
     };
   }));
+}
+
+async function loadStaticRedirects(): Promise<ReadonlyMap<string, string>>
+{
+  const source = await readFile(staticRedirectsPath, "utf8");
+  const builtSource = await readFile(path.join(distributionDirectory, "_redirects"), "utf8");
+  const redirects = new Map<string, string>();
+
+  if (builtSource !== source)
+  {
+    errors.push("The built _redirects file differs from public/_redirects");
+  }
+
+  for (const [lineIndex, rawLine] of source.split("\n").entries())
+  {
+    const line = rawLine.trim();
+
+    if (line.length === 0 || line.startsWith("#"))
+    {
+      continue;
+    }
+
+    const columns = line.split(/\s+/u);
+
+    if (columns.length !== 3)
+    {
+      errors.push(`public/_redirects:${lineIndex + 1} must contain source, destination, and status`);
+      continue;
+    }
+
+    const [sourcePath, destinationPath, status] = columns;
+
+    if (!sourcePath.startsWith("/") || !destinationPath.startsWith("/"))
+    {
+      errors.push(`public/_redirects:${lineIndex + 1} must use site-relative paths`);
+      continue;
+    }
+
+    if (status !== "308")
+    {
+      errors.push(`public/_redirects:${lineIndex + 1} must use a permanent 308 redirect`);
+    }
+
+    if (redirects.has(sourcePath))
+    {
+      errors.push(`public/_redirects:${lineIndex + 1} duplicates ${sourcePath}`);
+      continue;
+    }
+
+    redirects.set(sourcePath, destinationPath);
+  }
+
+  for (const [sourcePath, destinationPath] of redirects)
+  {
+    const destinationFilePath = destinationPath.endsWith("/")
+      ? path.join(distributionDirectory, destinationPath, "index.html")
+      : path.join(distributionDirectory, destinationPath);
+
+    try
+    {
+      await access(destinationFilePath);
+    }
+    catch
+    {
+      errors.push(`Static redirect ${sourcePath} points to missing output ${destinationPath}`);
+    }
+  }
+
+  return redirects;
 }
 
 async function auditAboutPages(): Promise<void>

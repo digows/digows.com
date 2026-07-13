@@ -4,19 +4,21 @@ import { handleContactRequest } from "./contact";
 import { jsonResponse } from "./http";
 import { handleCommentModerationRequest } from "./moderation";
 import { handleReactionsRequest } from "./reactions";
-import { legacyRedirects } from "./legacy-redirects";
+import {
+  handleNewsletterConfirmationRequest,
+  handleNewsletterSubscriptionRequest,
+} from "./newsletter/handler";
+import { reconcileNewsletterSubscriptions } from "./newsletter/service";
+import { handleResendWebhookRequest } from "./newsletter/webhook";
 
 export default {
   async fetch(request, environment, executionContext): Promise<Response>
   {
     const url = new URL(request.url);
 
-    const redirectPath = legacyRedirects.get(url.pathname);
-
-    if (redirectPath !== undefined || url.hostname === "www.digows.com" || url.hostname === "blog.digows.com")
+    if (url.hostname === "www.digows.com" || url.hostname === "blog.digows.com")
     {
       url.hostname = "digows.com";
-      url.pathname = redirectPath ?? url.pathname;
       return Response.redirect(url.toString(), 308);
     }
 
@@ -88,11 +90,67 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/newsletter/subscriptions")
+    {
+      try
+      {
+        return await handleNewsletterSubscriptionRequest(request, environment);
+      }
+      catch (error)
+      {
+        console.error(JSON.stringify({
+          event: "newsletter_subscription_api_failed",
+          message: error instanceof Error ? error.message : "Unknown error",
+          rayId: request.headers.get("CF-Ray"),
+        }));
+        return jsonResponse({ error: "internal_error" }, 500, { "Cache-Control": "no-store" });
+      }
+    }
+
+    if (url.pathname === "/api/newsletter/confirm")
+    {
+      try
+      {
+        return await handleNewsletterConfirmationRequest(request, environment, executionContext);
+      }
+      catch (error)
+      {
+        console.error(JSON.stringify({
+          event: "newsletter_confirmation_api_failed",
+          message: error instanceof Error ? error.message : "Unknown error",
+          rayId: request.headers.get("CF-Ray"),
+        }));
+        return jsonResponse({ error: "internal_error" }, 500, { "Cache-Control": "no-store" });
+      }
+    }
+
+    if (url.pathname === "/api/webhooks/resend")
+    {
+      try
+      {
+        return await handleResendWebhookRequest(request, environment);
+      }
+      catch (error)
+      {
+        console.error(JSON.stringify({
+          event: "resend_webhook_failed",
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          rayId: request.headers.get("CF-Ray"),
+        }));
+        return jsonResponse({ error: "internal_error" }, 500, { "Cache-Control": "no-store" });
+      }
+    }
+
     if (url.pathname.startsWith("/api/"))
     {
       return jsonResponse({ error: "not_found" }, 404, { "Cache-Control": "no-store" });
     }
 
     return environment.ASSETS.fetch(request);
+  },
+
+  async scheduled(_controller, environment, executionContext): Promise<void>
+  {
+    executionContext.waitUntil(reconcileNewsletterSubscriptions(environment));
   },
 } satisfies ExportedHandler<Environment>;

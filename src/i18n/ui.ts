@@ -21,6 +21,7 @@ export function getGlobalUiCopy(locale: Locale)
       archive: m.navigation_archive({}, options),
       contact: m.navigation_contact({}, options),
       home: m.navigation_home({}, options),
+      newsletter: m.navigation_newsletter({}, options),
       primary: m.navigation_primary({}, options),
     },
     site: {
@@ -52,6 +53,9 @@ export function getContactUiCopy(locale: Locale)
     verificationExpired: m.contact_verification_expired({}, options),
     rateLimited: m.contact_rate_limited({}, options),
     privacy: m.contact_privacy({}, options),
+    newsletterOptIn: m.contact_newsletter_opt_in({}, options),
+    newsletterConfirmationNote: m.newsletter_opt_in_confirmation_note({}, options),
+    newsletterUnavailableNote: m.newsletter_opt_in_unavailable_note({}, options),
     invalid: {
       name: m.contact_invalid_name({}, options),
       email: m.contact_invalid_email({}, options),
@@ -178,6 +182,10 @@ export function getCommentsUiCopy(locale: Locale)
     formHeading: m.comments_form_heading({}, options),
     moderation: m.comments_moderation({}, options),
     name: m.comments_name({}, options),
+    newsletterEmail: m.comments_newsletter_email({}, options),
+    newsletterOptIn: m.comments_newsletter_opt_in({}, options),
+    newsletterConfirmationNote: m.newsletter_opt_in_confirmation_note({}, options),
+    newsletterUnavailableNote: m.newsletter_opt_in_unavailable_note({}, options),
     website: m.comments_website({}, options),
     message: m.comments_message({}, options),
     submit: m.comments_submit({}, options),
@@ -193,5 +201,41 @@ export function getCommentsUiCopy(locale: Locale)
     unavailableRetry: m.comments_unavailable_retry({}, options),
     verification: m.comments_verification({}, options),
     verificationExpired: m.comments_verification_expired({}, options),
+  } as const;
+}
+
+export function getNewsletterUiCopy(locale: Locale)
+{
+  const options = { locale } as const;
+
+  return {
+    panelTitle: m.navigation_newsletter({}, options),
+    cta: {
+      kicker: m.newsletter_cta_kicker({}, options),
+      title: m.newsletter_cta_title({}, options),
+      description: m.newsletter_cta_description({}, options),
+      action: m.newsletter_cta_action({}, options),
+    },
+    email: m.newsletter_email({}, options),
+    submit: m.newsletter_submit({}, options),
+    loading: m.newsletter_loading({}, options),
+    checkEmail: m.newsletter_check_email({}, options),
+    error: m.newsletter_error({}, options),
+    invalidEmail: m.newsletter_invalid_email({}, options),
+    rateLimited: m.newsletter_rate_limited({}, options),
+    privacy: m.newsletter_privacy({}, options),
+    verification: m.newsletter_verification({}, options),
+    verificationExpired: m.newsletter_verification_expired({}, options),
+    confirmation: {
+      heading: m.newsletter_confirm_heading({}, options),
+      description: m.newsletter_confirm_description({}, options),
+      action: m.newsletter_confirm_action({}, options),
+      loading: m.newsletter_confirm_loading({}, options),
+      confirmed: m.newsletter_confirmed({}, options),
+      alreadyConfirmed: m.newsletter_already_confirmed({}, options),
+      expired: m.newsletter_expired({}, options),
+      invalid: m.newsletter_invalid({}, options),
+      error: m.newsletter_error({}, options),
+    },
   } as const;
 }

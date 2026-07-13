@@ -4,6 +4,12 @@ import { isSameOrigin, jsonResponse, methodNotAllowed } from "./http";
 import { sendCommentNotification } from "./notifications";
 import { createSubmissionFingerprint } from "./security";
 import { verifyTurnstile } from "./turnstile";
+import { newsletterConsentVersion } from "./newsletter/contracts";
+import {
+  normalizeNewsletterEmail,
+  normalizeNewsletterSourcePath,
+  requestNewsletterSubscription,
+} from "./newsletter/service";
 
 const defaultPageSize = 30;
 const maximumPageSize = 100;
@@ -25,6 +31,10 @@ interface CommentSubmission
   readonly anchorQuote?: unknown;
   readonly anchorLocale?: unknown;
   readonly discussionPromptKey?: unknown;
+  readonly newsletterOptIn?: unknown;
+  readonly newsletterEmail?: unknown;
+  readonly newsletterConsentVersion?: unknown;
+  readonly sourcePath?: unknown;
 }
 
 interface CommentCursor
@@ -32,6 +42,8 @@ interface CommentCursor
   readonly createdAt: number;
   readonly id: string;
 }
+
+type NewsletterOptInPublicStatus = "accepted" | "unavailable";
 
 export async function handleCommentsRequest(
   request: Request,
@@ -289,7 +301,39 @@ async function submitComment(
     createdAt: now,
   }));
 
-  return acceptedResponse();
+  let newsletterStatus: NewsletterOptInPublicStatus | undefined;
+
+  if (
+    validatedSubmission.newsletterOptIn
+    && validatedSubmission.newsletterEmail !== null
+    && validatedSubmission.sourcePath !== null
+  )
+  {
+    try
+    {
+      const result = await requestNewsletterSubscription(environment, {
+        email: validatedSubmission.newsletterEmail,
+        locale: validatedSubmission.language,
+        source: "comment",
+        sourcePath: validatedSubmission.sourcePath,
+        consentVersion: newsletterConsentVersion,
+        submissionFingerprint,
+      });
+      newsletterStatus = result.status === "rate_limited" || result.status === "suppressed"
+        ? "unavailable"
+        : "accepted";
+    }
+    catch (error)
+    {
+      newsletterStatus = "unavailable";
+      console.error(JSON.stringify({
+        event: "comment_newsletter_opt_in_failed",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      }));
+    }
+  }
+
+  return acceptedResponse(newsletterStatus);
 }
 
 function validateSubmission(submission: CommentSubmission): {
@@ -304,6 +348,9 @@ function validateSubmission(submission: CommentSubmission): {
   readonly anchorId: string | null;
   readonly anchorQuote: string | null;
   readonly discussionPromptKey: string | null;
+  readonly newsletterOptIn: boolean;
+  readonly newsletterEmail: string | null;
+  readonly sourcePath: string | null;
 } | null
 {
   const contentId = normalizeContentId(submission.contentId);
@@ -322,6 +369,9 @@ function validateSubmission(submission: CommentSubmission): {
   const hasAnyAnchorField = submission.anchorId !== undefined
     || submission.anchorQuote !== undefined
     || submission.anchorLocale !== undefined;
+  const newsletterOptIn = submission.newsletterOptIn === true;
+  const newsletterEmail = newsletterOptIn ? normalizeNewsletterEmail(submission.newsletterEmail) : null;
+  const sourcePath = newsletterOptIn ? normalizeNewsletterSourcePath(submission.sourcePath) : null;
 
   if (
     contentId === null
@@ -334,6 +384,15 @@ function validateSubmission(submission: CommentSubmission): {
     || (parentId !== null && !/^[0-9a-f-]{36}$/i.test(parentId))
     || (hasAnyAnchorField && (anchorId === null || anchorQuote === null || anchorLocale !== language))
     || discussionPromptKey === undefined
+    || (submission.newsletterOptIn !== undefined && typeof submission.newsletterOptIn !== "boolean")
+    || (
+      newsletterOptIn
+      && (
+        newsletterEmail === null
+        || sourcePath === null
+        || submission.newsletterConsentVersion !== newsletterConsentVersion
+      )
+    )
   )
   {
     return null;
@@ -351,6 +410,9 @@ function validateSubmission(submission: CommentSubmission): {
     anchorId: hasAnyAnchorField ? anchorId : null,
     anchorQuote: hasAnyAnchorField ? anchorQuote : null,
     discussionPromptKey,
+    newsletterOptIn,
+    newsletterEmail,
+    sourcePath,
   };
 }
 
@@ -526,10 +588,14 @@ function toPublicComment(comment: CommentRecord): Record<string, unknown>
   };
 }
 
-function acceptedResponse(): Response
+function acceptedResponse(newsletterStatus?: NewsletterOptInPublicStatus): Response
 {
   return jsonResponse(
-    { accepted: true, message: "Your comment is awaiting moderation." },
+    {
+      accepted: true,
+      message: "Your comment is awaiting moderation.",
+      ...(newsletterStatus === undefined ? {} : { newsletter: newsletterStatus }),
+    },
     202,
     { "Cache-Control": "no-store" },
   );

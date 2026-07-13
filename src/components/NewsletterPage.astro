@@ -1,0 +1,37 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import NewsletterSignup from "./NewsletterSignup.astro";
+import { newsletterPageContent } from "../content/pages/newsletter/content";
+import type { Locale } from "../i18n/locales";
+import { getSiteRouteAlternates, getSiteRoutePath } from "../i18n/routes";
+
+interface Props
+{
+  readonly language: Locale;
+}
+
+const { language } = Astro.props;
+const content = newsletterPageContent[language];
+---
+
+<BaseLayout
+  title={content.title}
+  seoTitle={content.seoTitle}
+  description={content.description}
+  canonicalPath={getSiteRoutePath("newsletter", language)}
+  language={language}
+  alternates={getSiteRouteAlternates("newsletter")}
+  showNewsletterSignupInContextPanel={false}
+>
+  <article class="newsletter-page">
+    <header class="newsletter-page__hero">
+      <p class="eyebrow">{content.eyebrow}</p>
+      <h1>{content.heading}</h1>
+      <p>{content.introduction}</p>
+      <ul aria-label={content.eyebrow}>
+        {content.promises.map((promise) => <li>{promise}</li>)}
+      </ul>
+    </header>
+    <NewsletterSignup language={language} source="newsletter_page" compact />
+  </article>
+</BaseLayout>
