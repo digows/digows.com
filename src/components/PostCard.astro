@@ -1,7 +1,6 @@
 ---
 import type { Post } from "../lib/posts";
 import { getPostPath, getPostPublicationDate, getPostPublicationDateValue } from "../lib/posts";
-import { getPostSocialImagePath } from "../lib/social-images";
 import { getPrimaryTopic, getTopicPath } from "../data/topics";
 import { localeDefinitions } from "../i18n/locales";
 import { getPostCardUiCopy } from "../i18n/ui";
@@ -17,25 +16,36 @@ const { post, alternatePosts = [], featured = false } = Astro.props;
 const language = post.data.language;
 const postPath = getPostPath(post);
 const topic = getPrimaryTopic(post);
-const imagePath = post.data.featuredImage ?? getPostSocialImagePath(post);
+const featuredImage = post.data.featuredImage;
 const copy = getPostCardUiCopy(language);
 const translations = [post, ...alternatePosts].sort((left, right) => left.data.language.localeCompare(right.data.language));
 const publicationDate = getPostPublicationDate(post);
 ---
 
-<article class:list={["post-card", { "post-card--featured": featured }]} lang={language}>
-  <a class="post-card__media" href={postPath} aria-label={`${copy.read}: ${post.data.title}`}>
-    <img
-      src={imagePath}
-      alt=""
-      width="1200"
-      height="750"
-      loading={featured ? "eager" : "lazy"}
-      fetchpriority={featured ? "high" : "auto"}
-      decoding="async"
-    />
-    <span class="post-card__index" aria-hidden="true">{publicationDate.getUTCFullYear()}</span>
-  </a>
+<article
+  class:list={[
+    "post-card",
+    {
+      "post-card--featured": featured,
+      "post-card--without-media": featuredImage === undefined
+    }
+  ]}
+  lang={language}
+>
+  {featuredImage !== undefined && (
+    <a class="post-card__media" href={postPath} aria-label={`${copy.read}: ${post.data.title}`}>
+      <img
+        src={featuredImage}
+        alt=""
+        width="1200"
+        height="750"
+        loading={featured ? "eager" : "lazy"}
+        fetchpriority={featured ? "high" : "auto"}
+        decoding="async"
+      />
+      <span class="post-card__index" aria-hidden="true">{publicationDate.getUTCFullYear()}</span>
+    </a>
+  )}
   <div class="post-card__body">
     <div class="post-card__meta">
       <a class="post-card__topic" href={getTopicPath(topic, language)}>{topic.labels[language]}</a>
