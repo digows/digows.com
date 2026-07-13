@@ -75,7 +75,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     readonly unavailableRetry: string;
     readonly verification: string;
     readonly verificationExpired: string;
-    readonly newsletterConfirmationNote: string;
+    readonly newsletterSubscribedNote: string;
     readonly newsletterUnavailableNote: string;
   }
 
@@ -393,7 +393,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       setReply(form, "", "");
       setAnchor(form, "", "", locale);
       const newsletterNote = result.newsletter === "accepted"
-        ? copy.newsletterConfirmationNote
+        ? copy.newsletterSubscribedNote
         : result.newsletter === "unavailable" ? copy.newsletterUnavailableNote : "";
       status.textContent = newsletterNote === "" ? copy.pending : `${copy.pending} ${newsletterNote}`;
       updateNewsletterEmailField(form, false);

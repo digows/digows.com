@@ -2,26 +2,22 @@ import { getSiteRoutePath } from "../../i18n/routes";
 import type { Locale } from "../../i18n/locales";
 import type { Environment } from "../contracts";
 import type {
-  NewsletterConfirmationResult,
   NewsletterRequestResult,
   NewsletterSubscriptionRecord,
   NewsletterSubscriptionRequest,
 } from "./contracts";
-import { createConfirmationEmail } from "./copy";
-import { createConfirmationToken, hashConfirmationToken } from "./crypto";
+import { createWelcomeEmail } from "./copy";
 import {
   ensureNewsletterSegment,
   ensureNewsletterTopic,
   type NewsletterProviderChannel,
   retrieveContactTopics,
-  sendNewsletterConfirmation,
+  sendNewsletterWelcome,
   synchronizeNewsletterContact,
 } from "./resend";
 
 const rateLimitWindowMilliseconds = 60 * 60 * 1000;
 const maximumRequestsPerWindow = 5;
-const pendingRequestCooldownMilliseconds = 10 * 60 * 1000;
-const confirmationValidityMilliseconds = 48 * 60 * 60 * 1000;
 const maximumReconciliationBatchSize = 5;
 
 const providerTopicCopy: Readonly<Record<Locale, { readonly name: string; readonly description: string }>> = {
@@ -46,13 +42,6 @@ const providerTopicCopy: Readonly<Record<Locale, { readonly name: string; readon
     description: "digows.com 的简体中文文章与现场笔记。",
   },
 };
-
-interface ConfirmationRecord extends NewsletterSubscriptionRecord
-{
-  readonly token_hash: string;
-  readonly expires_at: number;
-  readonly consumed_at: number | null;
-}
 
 export function normalizeNewsletterEmail(value: unknown): string | null
 {
@@ -95,12 +84,13 @@ export async function requestNewsletterSubscription(
 
   if (!rateLimit.allowed)
   {
-    return { status: "rate_limited" };
+    return { status: "rate_limited", subscriptionId: null };
   }
 
   const existingSubscription = await environment.SITE_DATABASE.prepare(`
     SELECT id, email, locale, status, provider_sync_status, provider_contact_id, source,
-           source_path, consent_version, requested_at, confirmation_sent_at, confirmed_at, updated_at
+           source_path, consent_version, requested_at, confirmed_at, welcome_delivery_status,
+           welcome_sent_at, updated_at
     FROM newsletter_subscriptions
     WHERE email = ? AND locale = ?
     LIMIT 1
@@ -108,36 +98,24 @@ export async function requestNewsletterSubscription(
 
   if (existingSubscription?.status === "active")
   {
-    return { status: "already_subscribed" };
+    return { status: "already_subscribed", subscriptionId: null };
   }
 
   if (existingSubscription?.status === "suppressed")
   {
-    return { status: "suppressed" };
-  }
-
-  if (
-    existingSubscription?.status === "pending"
-    && existingSubscription.confirmation_sent_at !== null
-    && existingSubscription.confirmation_sent_at >= now - pendingRequestCooldownMilliseconds
-  )
-  {
-    return { status: "already_pending" };
+    return { status: "suppressed", subscriptionId: null };
   }
 
   const subscriptionId = existingSubscription?.id ?? crypto.randomUUID();
-  const token = createConfirmationToken();
-  const tokenHash = await hashConfirmationToken(token);
-  const expiresAt = now + confirmationValidityMilliseconds;
   const subscriptionStatement = existingSubscription === null
     ? environment.SITE_DATABASE.prepare(`
         INSERT INTO newsletter_subscriptions
         (
           id, email, locale, status, provider_sync_status, provider_contact_id, source,
-          source_path, consent_version, requested_at, confirmation_sent_at, confirmed_at,
-          unsubscribed_at, updated_at, submission_fingerprint
+          source_path, consent_version, requested_at, confirmed_at, unsubscribed_at, updated_at,
+          submission_fingerprint, welcome_delivery_status, welcome_sent_at
         )
-        VALUES (?, ?, ?, 'pending', 'not_ready', NULL, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)
+        VALUES (?, ?, ?, 'active', 'pending', NULL, ?, ?, ?, ?, ?, NULL, ?, ?, 'pending', NULL)
       `).bind(
         subscriptionId,
         request.email,
@@ -147,18 +125,21 @@ export async function requestNewsletterSubscription(
         request.consentVersion,
         now,
         now,
+        now,
         request.submissionFingerprint,
       )
     : environment.SITE_DATABASE.prepare(`
         UPDATE newsletter_subscriptions
-        SET status = 'pending', provider_sync_status = 'not_ready', source = ?, source_path = ?,
-            consent_version = ?, requested_at = ?, confirmation_sent_at = NULL,
-            confirmed_at = NULL, unsubscribed_at = NULL, updated_at = ?, submission_fingerprint = ?
+        SET status = 'active', provider_sync_status = 'pending', source = ?, source_path = ?,
+            consent_version = ?, requested_at = ?, confirmed_at = ?, unsubscribed_at = NULL,
+            updated_at = ?, submission_fingerprint = ?, welcome_delivery_status = 'pending',
+            welcome_sent_at = NULL
         WHERE id = ?
       `).bind(
         request.source,
         request.sourcePath,
         request.consentVersion,
+        now,
         now,
         now,
         request.submissionFingerprint,
@@ -167,82 +148,11 @@ export async function requestNewsletterSubscription(
 
   await environment.SITE_DATABASE.batch([
     subscriptionStatement,
-    environment.SITE_DATABASE.prepare(`
-      DELETE FROM newsletter_confirmation_tokens
-      WHERE subscription_id = ? AND consumed_at IS NULL
-    `).bind(subscriptionId),
-    environment.SITE_DATABASE.prepare(`
-      INSERT INTO newsletter_confirmation_tokens
-        (token_hash, subscription_id, created_at, expires_at, consumed_at)
-      VALUES (?, ?, ?, ?, NULL)
-    `).bind(tokenHash, subscriptionId, now, expiresAt),
     createEventStatement(environment, subscriptionId, "requested", now),
+    createEventStatement(environment, subscriptionId, "confirmed", now),
   ]);
 
-  try
-  {
-    await sendConfirmationEmail(environment, subscriptionId, token);
-  }
-  catch (error)
-  {
-    await recordNewsletterEvent(environment, subscriptionId, "confirmation_failed", Date.now());
-    throw error;
-  }
-
-  return { status: "confirmation_sent" };
-}
-
-export async function confirmNewsletterSubscription(
-  environment: Environment,
-  token: string,
-): Promise<NewsletterConfirmationResult>
-{
-  const now = Date.now();
-  const tokenHash = await hashConfirmationToken(token);
-  const record = await environment.SITE_DATABASE.prepare(`
-    SELECT s.id, s.email, s.locale, s.status, s.provider_sync_status, s.provider_contact_id,
-           s.source, s.source_path, s.consent_version, s.requested_at, s.confirmation_sent_at,
-           s.confirmed_at, s.updated_at, t.token_hash, t.expires_at, t.consumed_at
-    FROM newsletter_confirmation_tokens t
-    INNER JOIN newsletter_subscriptions s ON s.id = t.subscription_id
-    WHERE t.token_hash = ?
-    LIMIT 1
-  `).bind(tokenHash).first<ConfirmationRecord>();
-
-  if (record === null)
-  {
-    return { status: "invalid", subscriptionId: null };
-  }
-
-  if (record.consumed_at !== null || record.status === "active")
-  {
-    return {
-      status: "already_confirmed",
-      subscriptionId: record.provider_sync_status === "synced" ? null : record.id,
-    };
-  }
-
-  if (record.expires_at < now || record.status !== "pending")
-  {
-    return { status: "expired", subscriptionId: null };
-  }
-
-  await environment.SITE_DATABASE.batch([
-    environment.SITE_DATABASE.prepare(`
-      UPDATE newsletter_confirmation_tokens
-      SET consumed_at = COALESCE(consumed_at, ?)
-      WHERE token_hash = ? AND expires_at >= ?
-    `).bind(now, tokenHash, now),
-    environment.SITE_DATABASE.prepare(`
-      UPDATE newsletter_subscriptions
-      SET status = 'active', provider_sync_status = 'pending', confirmed_at = COALESCE(confirmed_at, ?),
-          unsubscribed_at = NULL, updated_at = ?
-      WHERE id = ? AND status = 'pending'
-    `).bind(now, now, record.id),
-    createEventStatement(environment, record.id, "confirmed", now),
-  ]);
-
-  return { status: "confirmed", subscriptionId: record.id };
+  return { status: "subscribed", subscriptionId };
 }
 
 export async function reconcileNewsletterSubscriptions(environment: Environment): Promise<void>
@@ -250,22 +160,22 @@ export async function reconcileNewsletterSubscriptions(environment: Environment)
   const subscriptions = await environment.SITE_DATABASE.prepare(`
     SELECT id
     FROM newsletter_subscriptions
-    WHERE status = 'active' AND provider_sync_status IN ('pending', 'failed')
+    WHERE status = 'active'
+      AND (
+        provider_sync_status IN ('pending', 'failed')
+        OR welcome_delivery_status IN ('pending', 'failed')
+      )
     ORDER BY updated_at ASC
     LIMIT ?
   `).bind(maximumReconciliationBatchSize).all<{ readonly id: string }>();
 
   for (const { id } of subscriptions.results)
   {
-    await synchronizeNewsletterSubscription(environment, id);
+    await completeNewsletterSubscription(environment, id);
   }
 
   const now = Date.now();
   await environment.SITE_DATABASE.batch([
-    environment.SITE_DATABASE.prepare(`
-      DELETE FROM newsletter_confirmation_tokens
-      WHERE consumed_at IS NULL AND expires_at < ?
-    `).bind(now - 7 * 24 * 60 * 60 * 1000),
     environment.SITE_DATABASE.prepare(`
       DELETE FROM interaction_rate_limits WHERE updated_at < ?
     `).bind(now - 30 * 24 * 60 * 60 * 1000),
@@ -275,51 +185,83 @@ export async function reconcileNewsletterSubscriptions(environment: Environment)
   ]);
 }
 
-async function sendConfirmationEmail(
+export async function completeNewsletterSubscription(
   environment: Environment,
   subscriptionId: string,
-  token: string,
 ): Promise<void>
 {
-  const tokenHash = await hashConfirmationToken(token);
-  const now = Date.now();
-  const record = await environment.SITE_DATABASE.prepare(`
-    SELECT s.id, s.email, s.locale, s.status, s.provider_sync_status, s.provider_contact_id,
-           s.source, s.source_path, s.consent_version, s.requested_at, s.confirmation_sent_at,
-           s.confirmed_at, s.updated_at, t.token_hash, t.expires_at, t.consumed_at
-    FROM newsletter_subscriptions s
-    INNER JOIN newsletter_confirmation_tokens t ON t.subscription_id = s.id
-    WHERE s.id = ? AND t.token_hash = ?
-    LIMIT 1
-  `).bind(subscriptionId, tokenHash).first<ConfirmationRecord>();
+  await Promise.all([
+    deliverNewsletterWelcome(environment, subscriptionId),
+    synchronizeNewsletterSubscription(environment, subscriptionId),
+  ]);
+}
 
-  if (record === null || record.status !== "pending" || record.consumed_at !== null || record.expires_at < now)
+async function deliverNewsletterWelcome(environment: Environment, subscriptionId: string): Promise<void>
+{
+  const record = await environment.SITE_DATABASE.prepare(`
+    SELECT id, email, locale, status, provider_sync_status, provider_contact_id, source,
+           source_path, consent_version, requested_at, confirmed_at, welcome_delivery_status,
+           welcome_sent_at, updated_at
+    FROM newsletter_subscriptions
+    WHERE id = ?
+    LIMIT 1
+  `).bind(subscriptionId).first<NewsletterSubscriptionRecord>();
+
+  if (
+    record === null
+    || record.status !== "active"
+    || !["pending", "failed"].includes(record.welcome_delivery_status)
+  )
   {
     return;
   }
 
-  const confirmationUrl = new URL(getSiteRoutePath("newsletter", record.locale), environment.SITE_ORIGIN);
-  confirmationUrl.hash = new URLSearchParams({ confirm: token }).toString();
-  const email = createConfirmationEmail(record.locale, confirmationUrl.toString());
-  await sendNewsletterConfirmation(environment, {
-    email: record.email,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    subscriptionId: `${record.id}/${tokenHash.slice(0, 16)}`,
-    locale: record.locale,
-  });
+  try
+  {
+    const newsletterUrl = new URL(getSiteRoutePath("newsletter", record.locale), environment.SITE_ORIGIN);
+    const email = createWelcomeEmail(record.locale, newsletterUrl.toString());
+    await sendNewsletterWelcome(environment, {
+      email: record.email,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      deliveryId: `${record.id}/${record.requested_at}`,
+      locale: record.locale,
+    });
 
-  const sentAt = Date.now();
-
-  await environment.SITE_DATABASE.batch([
-    environment.SITE_DATABASE.prepare(`
+    const sentAt = Date.now();
+    await environment.SITE_DATABASE.prepare(`
       UPDATE newsletter_subscriptions
-      SET confirmation_sent_at = COALESCE(confirmation_sent_at, ?), updated_at = ?
-      WHERE id = ?
-    `).bind(sentAt, sentAt, record.id),
-    createEventStatement(environment, record.id, "confirmation_sent", sentAt),
-  ]);
+      SET welcome_delivery_status = 'sent', welcome_sent_at = ?, updated_at = ?
+      WHERE id = ? AND status = 'active'
+    `).bind(sentAt, sentAt, record.id).run();
+  }
+  catch (error)
+  {
+    const failedAt = Date.now();
+    try
+    {
+      await environment.SITE_DATABASE.prepare(`
+        UPDATE newsletter_subscriptions
+        SET welcome_delivery_status = 'failed', updated_at = ?
+        WHERE id = ? AND status = 'active'
+      `).bind(failedAt, record.id).run();
+    }
+    catch (persistenceError)
+    {
+      console.error(JSON.stringify({
+        event: "newsletter_welcome_failure_state_persistence_failed",
+        subscriptionId: record.id,
+        errorName: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+      }));
+    }
+
+    console.error(JSON.stringify({
+      event: "newsletter_welcome_delivery_failed",
+      subscriptionId: record.id,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }));
+  }
 }
 
 export async function synchronizeNewsletterSubscription(
@@ -349,7 +291,8 @@ async function synchronizeNewsletterSubscriptionWithProvider(
 {
   const subscription = await environment.SITE_DATABASE.prepare(`
     SELECT id, email, locale, status, provider_sync_status, provider_contact_id, source,
-           source_path, consent_version, requested_at, confirmation_sent_at, confirmed_at, updated_at
+           source_path, consent_version, requested_at, confirmed_at, welcome_delivery_status,
+           welcome_sent_at, updated_at
     FROM newsletter_subscriptions
     WHERE id = ?
     LIMIT 1
@@ -560,25 +503,4 @@ function createEventStatement(
     INSERT INTO newsletter_events (id, subscription_id, event_type, provider_event_id, created_at)
     VALUES (?, ?, ?, NULL, ?)
   `).bind(crypto.randomUUID(), subscriptionId, eventType, createdAt);
-}
-
-async function recordNewsletterEvent(
-  environment: Environment,
-  subscriptionId: string,
-  eventType: string,
-  createdAt: number,
-): Promise<void>
-{
-  try
-  {
-    await createEventStatement(environment, subscriptionId, eventType, createdAt).run();
-  }
-  catch (error)
-  {
-    console.error(JSON.stringify({
-      event: "newsletter_audit_event_failed",
-      eventType,
-      errorName: error instanceof Error ? error.name : "UnknownError",
-    }));
-  }
 }

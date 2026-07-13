@@ -10,33 +10,14 @@
     {
       "pattern": "digows.com",
       "custom_domain": true
-    },
-    {
-      "pattern": "www.digows.com",
-      "custom_domain": true
-    },
-    {
-      "pattern": "blog.digows.com",
-      "custom_domain": true
     }
   ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "run_worker_first": [
-      "/*",
-      "!/_astro/*",
-      "!/brand/*",
-      "!/images/*",
-      "!/media/*",
-      "!/social/*",
-      "!/apple-touch-icon.png",
-      "!/favicon-48x48.png",
-      "!/favicon.ico",
-      "!/favicon.svg",
-      "!/robots.txt",
-      "!/sitemap*.xml",
-      "!/*/rss.xml"
+      "/api/*",
+      "/moderate/comment"
     ],
     "html_handling": "force-trailing-slash",
     "not_found_handling": "404-page"
@@ -60,7 +41,7 @@
   },
   "vars": {
     "SITE_ORIGIN": "https://digows.com",
-    "TURNSTILE_HOSTNAMES": "digows.com,www.digows.com",
+    "TURNSTILE_HOSTNAMES": "digows.com",
     "NOTIFICATION_EMAIL_FROM": "contact@digows.com",
     "NEWSLETTER_EMAIL_FROM": "Rodrigo P. Fraga <letters@updates.digows.com>",
     "NEWSLETTER_REPLY_TO": "contact@digows.com",

@@ -63,32 +63,6 @@ const copy = getGlobalUiCopy(language);
         catch {}
       })();
     </script>
-    <script is:inline>
-      (() => {
-        try
-        {
-          const url = new URL(window.location.href);
-          const fragmentParameters = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : "");
-          const token = url.searchParams.get("token") ?? fragmentParameters.get("confirm");
-
-          if (token !== null && /^[A-Za-z0-9_-]{43}$/u.test(token))
-          {
-            const currentState = typeof window.history.state === "object" && window.history.state !== null
-              ? window.history.state
-              : {};
-            url.searchParams.delete("token");
-            fragmentParameters.delete("confirm");
-            url.hash = fragmentParameters.size > 0 ? fragmentParameters.toString() : "";
-            window.history.replaceState(
-              { ...currentState, digowsNewsletterConfirmationToken: token },
-              "",
-              `${url.pathname}${url.search}${url.hash}`,
-            );
-          }
-        }
-        catch {}
-      })();
-    </script>
     <SeoHead {...props} />
     <!-- Google tag (gtag.js) -->
     <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-HT2YR180C1"></script>

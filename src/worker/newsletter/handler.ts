@@ -8,13 +8,11 @@ import {
   newsletterSources,
   type NewsletterSource,
 } from "./contracts";
-import { isConfirmationToken } from "./crypto";
 import {
-  confirmNewsletterSubscription,
+  completeNewsletterSubscription,
   normalizeNewsletterEmail,
   normalizeNewsletterSourcePath,
   requestNewsletterSubscription,
-  synchronizeNewsletterSubscription,
 } from "./service";
 
 const maximumRequestBytes = 4_096;
@@ -31,14 +29,10 @@ interface NewsletterSubscriptionSubmission
   readonly company?: unknown;
 }
 
-interface NewsletterConfirmationSubmission
-{
-  readonly token?: unknown;
-}
-
 export async function handleNewsletterSubscriptionRequest(
   request: Request,
   environment: Environment,
+  executionContext: ExecutionContext,
 ): Promise<Response>
 {
   if (request.method !== "POST")
@@ -116,41 +110,12 @@ export async function handleNewsletterSubscriptionRequest(
     });
   }
 
-  return acceptedResponse();
-}
-
-export async function handleNewsletterConfirmationRequest(
-  request: Request,
-  environment: Environment,
-  executionContext: ExecutionContext,
-): Promise<Response>
-{
-  if (request.method !== "POST")
-  {
-    return methodNotAllowed(["POST"]);
-  }
-
-  if (!isSameOrigin(request, environment.SITE_ORIGIN))
-  {
-    return jsonResponse({ error: "invalid_origin" }, 403, { "Cache-Control": "no-store" });
-  }
-
-  const submission = await readJson<NewsletterConfirmationSubmission>(request);
-
-  if (submission === null || !isConfirmationToken(submission.token))
-  {
-    return jsonResponse({ status: "invalid" }, 400, { "Cache-Control": "no-store" });
-  }
-
-  const result = await confirmNewsletterSubscription(environment, submission.token);
-
   if (result.subscriptionId !== null)
   {
-    executionContext.waitUntil(synchronizeNewsletterSubscription(environment, result.subscriptionId));
+    executionContext.waitUntil(completeNewsletterSubscription(environment, result.subscriptionId));
   }
 
-  const responseStatus = result.status === "invalid" ? 400 : result.status === "expired" ? 410 : 200;
-  return jsonResponse({ status: result.status }, responseStatus, { "Cache-Control": "no-store" });
+  return acceptedResponse();
 }
 
 async function readJson<T>(request: Request): Promise<T | null>
@@ -183,8 +148,8 @@ async function readJson<T>(request: Request): Promise<T | null>
 function acceptedResponse(): Response
 {
   return jsonResponse(
-    { accepted: true, status: "confirmation_required" },
-    202,
+    { accepted: true, status: "subscribed" },
+    200,
     { "Cache-Control": "no-store" },
   );
 }

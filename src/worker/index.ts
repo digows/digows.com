@@ -4,10 +4,7 @@ import { handleContactRequest } from "./contact";
 import { jsonResponse } from "./http";
 import { handleCommentModerationRequest } from "./moderation";
 import { handleReactionsRequest } from "./reactions";
-import {
-  handleNewsletterConfirmationRequest,
-  handleNewsletterSubscriptionRequest,
-} from "./newsletter/handler";
+import { handleNewsletterSubscriptionRequest } from "./newsletter/handler";
 import { reconcileNewsletterSubscriptions } from "./newsletter/service";
 import { handleResendWebhookRequest } from "./newsletter/webhook";
 
@@ -15,12 +12,6 @@ export default {
   async fetch(request, environment, executionContext): Promise<Response>
   {
     const url = new URL(request.url);
-
-    if (url.hostname === "www.digows.com" || url.hostname === "blog.digows.com")
-    {
-      url.hostname = "digows.com";
-      return Response.redirect(url.toString(), 308);
-    }
 
     if (url.pathname === "/moderate/comment")
     {
@@ -94,29 +85,12 @@ export default {
     {
       try
       {
-        return await handleNewsletterSubscriptionRequest(request, environment);
+        return await handleNewsletterSubscriptionRequest(request, environment, executionContext);
       }
       catch (error)
       {
         console.error(JSON.stringify({
           event: "newsletter_subscription_api_failed",
-          message: error instanceof Error ? error.message : "Unknown error",
-          rayId: request.headers.get("CF-Ray"),
-        }));
-        return jsonResponse({ error: "internal_error" }, 500, { "Cache-Control": "no-store" });
-      }
-    }
-
-    if (url.pathname === "/api/newsletter/confirm")
-    {
-      try
-      {
-        return await handleNewsletterConfirmationRequest(request, environment, executionContext);
-      }
-      catch (error)
-      {
-        console.error(JSON.stringify({
-          event: "newsletter_confirmation_api_failed",
           message: error instanceof Error ? error.message : "Unknown error",
           rayId: request.headers.get("CF-Ray"),
         }));

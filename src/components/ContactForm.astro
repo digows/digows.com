@@ -41,7 +41,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     readonly verification: string;
     readonly verificationExpired: string;
     readonly rateLimited: string;
-    readonly newsletterConfirmationNote: string;
+    readonly newsletterSubscribedNote: string;
     readonly newsletterUnavailableNote: string;
     readonly invalid: Readonly<Record<string, string>> & { readonly fallback: string };
   }
@@ -129,7 +129,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
 
         form.reset();
         const newsletterNote = result.newsletter === "accepted"
-          ? copy.newsletterConfirmationNote
+          ? copy.newsletterSubscribedNote
           : result.newsletter === "unavailable" ? copy.newsletterUnavailableNote : "";
         status.textContent = newsletterNote === "" ? copy.success : `${copy.success} ${newsletterNote}`;
         resetTurnstile(form);

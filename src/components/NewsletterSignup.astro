@@ -29,40 +29,30 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
   data-copy={JSON.stringify(copy)}
   aria-labelledby={`newsletter-title-${source}`}
 >
-  <div data-signup-body>
-    <header class="newsletter-signup__header">
-      {panel ? (
-        <h2 id={`newsletter-title-${source}`}>{copy.panelTitle}</h2>
-      ) : (
-        <>
-          <p class="eyebrow">{copy.cta.kicker}</p>
-          <h2 id={`newsletter-title-${source}`}>{copy.cta.title}</h2>
-          <p>{copy.cta.description}</p>
-        </>
-      )}
-    </header>
-    <form class="newsletter-form" data-newsletter-form novalidate>
-      <label>
-        <span>{copy.email}</span>
-        <input name="email" type="email" autocomplete="email" maxlength="254" required />
-      </label>
-      <label class="honeypot" hidden>Company<input name="company" tabindex="-1" autocomplete="off" /></label>
-      <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="newsletter_subscribe" data-theme="auto" data-size="flexible" data-appearance="interaction-only"></div>
-      <div class="newsletter-form__action">
-        <button class="button" type="submit" data-submit-label={copy.submit} data-loading-label={copy.loading}>{copy.submit}</button>
-        <p>{copy.privacy}</p>
-      </div>
-      <p class="form-status" data-newsletter-status role="status" aria-live="polite"></p>
-    </form>
-  </div>
-
-  <div class="newsletter-confirmation" data-confirmation-panel hidden>
-    <p class="eyebrow">digows.com</p>
-    <h2>{copy.confirmation.heading}</h2>
-    <p>{copy.confirmation.description}</p>
-    <button class="button" type="button" data-confirm-action>{copy.confirmation.action}</button>
-    <p class="form-status" data-confirmation-status role="status" aria-live="polite"></p>
-  </div>
+  <header class="newsletter-signup__header">
+    {panel ? (
+      <h2 id={`newsletter-title-${source}`}>{copy.panelTitle}</h2>
+    ) : (
+      <>
+        <p class="eyebrow">{copy.cta.kicker}</p>
+        <h2 id={`newsletter-title-${source}`}>{copy.cta.title}</h2>
+        <p>{copy.cta.description}</p>
+      </>
+    )}
+  </header>
+  <form class="newsletter-form" data-newsletter-form novalidate>
+    <label>
+      <span>{copy.email}</span>
+      <input name="email" type="email" autocomplete="email" maxlength="254" required />
+    </label>
+    <label class="honeypot" hidden>Company<input name="company" tabindex="-1" autocomplete="off" /></label>
+    <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="newsletter_subscribe" data-theme="auto" data-size="flexible" data-appearance="interaction-only"></div>
+    <div class="newsletter-form__action">
+      <button class="button" type="submit" data-submit-label={copy.submit} data-loading-label={copy.loading}>{copy.submit}</button>
+      <p>{copy.privacy}</p>
+    </div>
+    <p class="form-status" data-newsletter-status role="status" aria-live="polite"></p>
+  </form>
 </section>
 
 <script>
@@ -70,21 +60,12 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
   {
     readonly submit: string;
     readonly loading: string;
-    readonly checkEmail: string;
+    readonly subscribed: string;
     readonly error: string;
     readonly invalidEmail: string;
     readonly rateLimited: string;
     readonly verification: string;
     readonly verificationExpired: string;
-    readonly confirmation: {
-      readonly action: string;
-      readonly loading: string;
-      readonly confirmed: string;
-      readonly alreadyConfirmed: string;
-      readonly expired: string;
-      readonly invalid: string;
-      readonly error: string;
-    };
   }
 
   interface TurnstileApi
@@ -124,12 +105,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       void submitNewsletterForm(root, form, copy);
     });
 
-    const token = readConfirmationToken();
-
-    if (token !== null)
-    {
-      showConfirmation(root, token, copy);
-    }
   }
 
   async function submitNewsletterForm(
@@ -205,7 +180,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
       }
 
       form.reset();
-      status.textContent = copy.checkEmail;
+      status.textContent = copy.subscribed;
       status.dataset.status = "success";
       resetTurnstile(form);
     }
@@ -217,88 +192,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     {
       submitButton.disabled = false;
       submitButton.textContent = submitButton.dataset.submitLabel ?? copy.submit;
-    }
-  }
-
-  function showConfirmation(root: HTMLElement, token: string, copy: NewsletterCopy): void
-  {
-    const signupBody = root.querySelector<HTMLElement>("[data-signup-body]");
-    const panel = root.querySelector<HTMLElement>("[data-confirmation-panel]");
-    const button = root.querySelector<HTMLButtonElement>("[data-confirm-action]");
-    const status = root.querySelector<HTMLElement>("[data-confirmation-status]");
-
-    if (signupBody === null || panel === null || button === null || status === null)
-    {
-      return;
-    }
-
-    panel.hidden = false;
-
-    if (!/^[A-Za-z0-9_-]{43}$/u.test(token))
-    {
-      button.hidden = true;
-      status.textContent = copy.confirmation.invalid;
-      return;
-    }
-
-    signupBody.hidden = true;
-    button.addEventListener("click", () =>
-    {
-      void confirmNewsletter(signupBody, button, status, token, copy);
-    }, { once: true });
-  }
-
-  async function confirmNewsletter(
-    signupBody: HTMLElement,
-    button: HTMLButtonElement,
-    status: HTMLElement,
-    token: string,
-    copy: NewsletterCopy,
-  ): Promise<void>
-  {
-    button.disabled = true;
-    button.textContent = copy.confirmation.loading;
-    status.textContent = "";
-    delete status.dataset.status;
-
-    try
-    {
-      const response = await fetch("/api/newsletter/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const result = await response.json() as { readonly status?: string };
-
-      if (result.status === "confirmed" || result.status === "already_confirmed")
-      {
-        button.hidden = true;
-        status.textContent = result.status === "confirmed"
-          ? copy.confirmation.confirmed
-          : copy.confirmation.alreadyConfirmed;
-        status.dataset.status = "success";
-        removeTokenFromAddressBar();
-        return;
-      }
-
-      if (result.status === "expired" || result.status === "invalid")
-      {
-        button.hidden = true;
-        status.textContent = result.status === "expired"
-          ? copy.confirmation.expired
-          : copy.confirmation.invalid;
-        signupBody.hidden = false;
-        removeTokenFromAddressBar();
-        return;
-      }
-
-      throw new Error("Newsletter confirmation failed");
-    }
-    catch
-    {
-      status.textContent = copy.confirmation.error;
-      button.disabled = false;
-      button.textContent = copy.confirmation.action;
     }
   }
 
@@ -323,32 +216,4 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAA
     document.head.append(script);
   }
 
-  function removeTokenFromAddressBar(): void
-  {
-    const url = new URL(window.location.href);
-    const fragmentParameters = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : "");
-    const currentState = typeof window.history.state === "object" && window.history.state !== null
-      ? { ...window.history.state }
-      : {};
-    url.searchParams.delete("token");
-    fragmentParameters.delete("confirm");
-    url.hash = fragmentParameters.size > 0 ? fragmentParameters.toString() : "";
-    delete currentState.digowsNewsletterConfirmationToken;
-    window.history.replaceState(currentState, "", `${url.pathname}${url.search}${url.hash}`);
-  }
-
-  function readConfirmationToken(): string | null
-  {
-    const url = new URL(window.location.href);
-    const fragmentParameters = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : "");
-    const tokenFromAddress = url.searchParams.get("token") ?? fragmentParameters.get("confirm");
-
-    if (tokenFromAddress !== null)
-    {
-      return tokenFromAddress;
-    }
-
-    const confirmationToken = window.history.state?.digowsNewsletterConfirmationToken;
-    return typeof confirmationToken === "string" ? confirmationToken : null;
-  }
 </script>

@@ -65,14 +65,14 @@ export class ResendApiError extends Error
   }
 }
 
-export async function sendNewsletterConfirmation(
+export async function sendNewsletterWelcome(
   environment: Environment,
   message: {
     readonly email: string;
     readonly subject: string;
     readonly html: string;
     readonly text: string;
-    readonly subscriptionId: string;
+    readonly deliveryId: string;
     readonly locale: string;
   },
 ): Promise<void>
@@ -83,7 +83,7 @@ export async function sendNewsletterConfirmation(
     {
       method: "POST",
       headers: {
-        "Idempotency-Key": `newsletter-confirmation/${message.subscriptionId}`,
+        "Idempotency-Key": `newsletter-welcome/${message.deliveryId}`,
       },
       body: JSON.stringify({
         from: environment.NEWSLETTER_EMAIL_FROM,
@@ -93,12 +93,12 @@ export async function sendNewsletterConfirmation(
         text: message.text,
         reply_to: environment.NEWSLETTER_REPLY_TO,
         tags: [
-          { name: "message_type", value: "newsletter_confirmation" },
+          { name: "message_type", value: "newsletter_welcome" },
           { name: "locale", value: message.locale.replace(/[^a-zA-Z0-9_-]/gu, "_") },
         ],
       }),
     },
-    "send confirmation",
+    "send welcome email",
   );
 }
 
@@ -202,7 +202,7 @@ export async function synchronizeNewsletterContact(
       environment.RESEND_MANAGEMENT_API_KEY,
       `/contacts/${encodedEmail}`,
       { method: "PATCH", body: JSON.stringify({ unsubscribed: false }) },
-      "reactivate contact after confirmed opt-in",
+      "reactivate contact after explicit opt-in",
     );
   }
 

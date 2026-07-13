@@ -1371,16 +1371,11 @@ h3 {
   content: "";
 }
 
-.newsletter-signup > [data-signup-body] {
-  display: contents;
-}
-
 .newsletter-signup__header {
   align-self: center;
 }
 
-.newsletter-signup__header h2,
-.newsletter-confirmation h2 {
+.newsletter-signup__header h2 {
   margin: 0.3rem 0 1rem;
   color: var(--text);
   font-size: clamp(2rem, 5vw, 3.7rem);
@@ -1388,8 +1383,7 @@ h3 {
   letter-spacing: -0.045em;
 }
 
-.newsletter-signup__header > p:last-child,
-.newsletter-confirmation > p:not(.eyebrow) {
+.newsletter-signup__header > p:last-child {
   max-width: 38rem;
   margin: 0;
   color: var(--muted);
@@ -1441,8 +1435,7 @@ h3 {
   line-height: 1.45;
 }
 
-.newsletter-form .form-status[data-status="success"],
-.newsletter-confirmation .form-status[data-status="success"] {
+.newsletter-form .form-status[data-status="success"] {
   color: var(--accent-strong);
   font-weight: 650;
 }
@@ -1454,26 +1447,12 @@ h3 {
   padding: clamp(1.4rem, 4vw, 2.25rem);
 }
 
-.newsletter-signup--compact .newsletter-signup__header h2,
-.newsletter-signup--compact .newsletter-confirmation h2 {
+.newsletter-signup--compact .newsletter-signup__header h2 {
   font-size: clamp(1.9rem, 5vw, 2.8rem);
 }
 
 .newsletter-signup--compact .newsletter-form {
   max-width: 36rem;
-}
-
-.newsletter-confirmation {
-  grid-column: 1 / -1;
-  max-width: 44rem;
-}
-
-.newsletter-confirmation .button {
-  margin-top: 1.4rem;
-}
-
-.newsletter-confirmation .form-status {
-  margin-top: 1rem;
 }
 
 .newsletter-page__hero > p:not(.eyebrow) {

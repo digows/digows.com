@@ -6,6 +6,7 @@ import { createSubmissionFingerprint } from "./security";
 import { verifyTurnstile } from "./turnstile";
 import { newsletterConsentVersion } from "./newsletter/contracts";
 import {
+  completeNewsletterSubscription,
   normalizeNewsletterEmail,
   normalizeNewsletterSourcePath,
   requestNewsletterSubscription,
@@ -322,6 +323,11 @@ async function submitComment(
       newsletterStatus = result.status === "rate_limited" || result.status === "suppressed"
         ? "unavailable"
         : "accepted";
+
+      if (result.subscriptionId !== null)
+      {
+        executionContext.waitUntil(completeNewsletterSubscription(environment, result.subscriptionId));
+      }
     }
     catch (error)
     {
