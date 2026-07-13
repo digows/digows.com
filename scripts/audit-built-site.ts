@@ -11,6 +11,7 @@ interface PostRecord
   readonly permalink: string;
   readonly translationKey: string;
   readonly translationOf?: string;
+  readonly legacyUrl?: string;
   readonly hasEditorial: boolean;
   readonly copyReviewed: boolean;
 }
@@ -56,6 +57,26 @@ for (const [translationKey, posts] of postGroups)
   if (translationKey !== originalPost.permalink)
   {
     errors.push(`${translationKey} must match the original permalink ${originalPost.permalink}`);
+  }
+
+  const legacyUrls = new Set(posts.map((post) => post.legacyUrl ?? null));
+  if (legacyUrls.size !== 1)
+  {
+    errors.push(`${translationKey} must use one shared legacyUrl or omit it from every translation`);
+  }
+  const sharedLegacyUrl = legacyUrls.size === 1 ? [...legacyUrls][0] : null;
+  const hasLegacyUrl = sharedLegacyUrl !== null && sharedLegacyUrl !== undefined;
+
+  if (hasLegacyUrl)
+  {
+    const legacyUrl = new URL(sharedLegacyUrl);
+    const localeSegments = new Set(supportedLocales.map(getLocaleUrlSegment));
+    const firstPathSegment = legacyUrl.pathname.split("/").filter(Boolean)[0];
+
+    if (legacyUrl.origin !== siteOrigin || (firstPathSegment !== undefined && localeSegments.has(firstPathSegment)))
+    {
+      errors.push(`${translationKey} legacyUrl must be an unprefixed URL on ${siteOrigin}`);
+    }
   }
 
   for (const post of posts)
@@ -162,9 +183,18 @@ for (const [translationKey, posts] of postGroups)
       }
     }
 
-    if ((post.language === "en" || post.language === "pt-BR") && legacyRedirects.get(`/${post.permalink}/`) !== `/${localeSegment}/${post.permalink}/`)
+    const unprefixedPath = `/${post.permalink}/`;
+    const canonicalPath = `/${localeSegment}/${post.permalink}/`;
+
+    if (hasLegacyUrl
+      && (post.language === "en" || post.language === "pt-BR")
+      && legacyRedirects.get(unprefixedPath) !== canonicalPath)
     {
       errors.push(`${post.filename} is missing its exact legacy redirect`);
+    }
+    if (!hasLegacyUrl && legacyRedirects.has(unprefixedPath))
+    {
+      errors.push(`${post.filename} is new content and must not create an unprefixed redirect`);
     }
   }
 }
@@ -314,6 +344,7 @@ async function loadPostRecords(): Promise<PostRecord[]>
     const frontmatter = parse(content.split("---", 3)[1] ?? "") as Record<string, unknown>;
     const language = frontmatter.language as PostRecord["language"];
     const translationOf = typeof frontmatter.translationOf === "string" ? frontmatter.translationOf : undefined;
+    const legacyUrl = typeof frontmatter.legacyUrl === "string" ? frontmatter.legacyUrl : undefined;
 
     return {
       filename: path.relative(postsDirectory, postPath),
@@ -323,6 +354,7 @@ async function loadPostRecords(): Promise<PostRecord[]>
       hasEditorial: /^editorial:\s*$/m.test(content),
       copyReviewed: /^\s+copyReviewed: true\s*$/m.test(content),
       ...(translationOf === undefined ? {} : { translationOf }),
+      ...(legacyUrl === undefined ? {} : { legacyUrl }),
     };
   }));
 }

@@ -23,7 +23,7 @@ const posts = defineCollection({
     wordpressId: z.number().int().positive().optional(),
     translationKey: z.string().min(1),
     translationOf: z.string().optional(),
-    legacyUrl: z.url(),
+    legacyUrl: z.url().optional(),
     legacy: z.boolean().default(false),
     featuredImage: z.string().optional(),
     editorial: z.object({

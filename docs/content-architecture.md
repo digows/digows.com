@@ -54,9 +54,14 @@ localized Markdown or typed page content.
 
 Every canonical page is locale-prefixed and emits its own canonical URL,
 reciprocal `hreflang` links for available translations, and an `x-default`
-pointing to the source version. `src/worker/legacy-redirects.ts` is a finite list
-of previously indexed, unprefixed URLs. New routes must never be added to the old
+pointing to the source version. `public/_redirects` is the finite source of truth
+for previously indexed, unprefixed URLs. New routes must never be added to the old
 URL shape.
+
+Imported content declares one shared `legacyUrl` across all translations, and the
+build audit requires the corresponding English and Brazilian Portuguese redirects.
+Genuinely new content omits `legacyUrl` from every translation and must not add an
+unprefixed redirect. Its first public URL is the locale-prefixed canonical URL.
 
 The Worker combines legacy-path migration and `www`/`blog` hostname
 canonicalization into one `308` response while preserving the query string.

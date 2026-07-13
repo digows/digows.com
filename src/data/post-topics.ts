@@ -1,31 +1,32 @@
+import rawPostTopicKeys from "./post-topics.json";
 import type { TopicKey } from "./topics";
 
+const allowedTopicKeys: ReadonlySet<string> = new Set([
+  "systems",
+  "intelligence",
+  "leadership",
+  "products",
+  "history",
+]);
+
 /** Stable taxonomy by content group. Translations must never infer different topics from localized prose. */
-export const postTopicKeys: Readonly<Record<string, readonly TopicKey[]>> = {
-  "2007/07/10/convenca-sua-equipe-para-desenvolvimento-web-e-com-adobe-flex": ["systems", "history"],
-  "2007/09/26/um-bug-no-google": ["history"],
-  "2007/11/16/como-anda-o-adobe-flex-no-brasil": ["systems", "history"],
-  "2007/12/13/ol-pessoal": ["history"],
-  "2007/12/17/postando-cdigos-com-o-wordpress-231": ["history"],
-  "2007/12/17/upload-de-arquivos-com-flex-php-e-java": ["systems", "history"],
-  "2007/12/18/modularizando-sua-aplicao-com-modules-e-flex-builder-3": ["history"],
-  "2007/12/19/adobe-flash-player-com-google-toolbar": ["history"],
-  "2007/12/20/adobe-celebra-25-anos-de-inovao": ["history"],
-  "2007/12/20/adobe-flex-padronizando-seu-cdigo": ["systems", "history"],
-  "2007/12/28/lanado-meu-labs": ["products", "history"],
-  "2007/12/29/trabalhando-com-css-no-adobe-flex-builder-3": ["history"],
-  "2007/12/30/ainda-sei-jogar-counter-strike": ["history"],
-  "2008/01/03/proposta-de-arquitetura-com-adobe-flex-e-php-usando-zend-framework": ["systems", "history"],
-  "2008/01/11/crtica-em-forma-de-comdia": ["history"],
-  "2008/01/16/forum-sobre-adobeflex": ["history"],
-  "2008/01/21/integrando-adobe-flex-blazeds-springframework-hibernate-uma-soluo-opensource-para-sistemas-web-parte-1": ["systems", "history"],
-  "2008/01/27/integrando-adobe-flex-blazeds-springframework-hibernate-uma-soluo-opensource-para-sistemas-web-parte-2-final": ["systems", "history"],
-  "2008/03/16/manifesto-flex-brasil": ["systems", "history"],
-  "2008/04/13/porqu-flex-why-flex": ["history"],
-  "2009/01/13/flex-um-chat-simples-em-menos-de-20-linhas": ["systems", "history"],
-  "2009/05/29/artigo-interfaces-de-qualidade-com-flex-na-java-magazine": ["systems", "history"],
-  "2010/09/06/artigo-integrando-flex-com-java-utilizando-o-blazeds-na-java-magazine-72": ["systems", "history"],
-  "2025/08/27/nine-women-cant-make-one-baby-why-smaller-software-teams-deliver-more": ["leadership", "products"],
-  "2025/09/02/the-ifless-principle-designing-apis-without-hidden-decisions": ["systems"],
-  "2026/05/20/the-high-individual-contributor-in-the-age-of-ai-agents": ["intelligence", "leadership"],
-};
+export const postTopicKeys: Readonly<Record<string, readonly TopicKey[]>> = Object.freeze(Object.fromEntries(
+  Object.entries(rawPostTopicKeys).map(([translationKey, rawTopicKeys]) =>
+  {
+    if (rawTopicKeys.length === 0 || new Set(rawTopicKeys).size !== rawTopicKeys.length)
+    {
+      throw new Error(`Invalid stable topic assignment for ${translationKey}`);
+    }
+
+    const topicKeys = rawTopicKeys.map((topicKey) =>
+    {
+      if (!allowedTopicKeys.has(topicKey))
+      {
+        throw new Error(`Unknown topic key ${topicKey} for ${translationKey}`);
+      }
+      return topicKey as TopicKey;
+    });
+
+    return [translationKey, Object.freeze(topicKeys)] as const;
+  }),
+));
