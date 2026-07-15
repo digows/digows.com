@@ -114,6 +114,18 @@ export function getArticleUiCopy(locale: Locale, readingMinutes: number, content
   } as const;
 }
 
+export function getArticleImageUiCopy(locale: Locale)
+{
+  const options = { locale } as const;
+
+  return {
+    open: m.article_image_open({}, options),
+    close: m.article_image_close({}, options),
+    dialogTitle: m.article_image_dialog_title({}, options),
+    original: m.article_image_original({}, options),
+  } as const;
+}
+
 export function getArticleInsightsUiCopy(locale: Locale)
 {
   const options = { locale } as const;

@@ -132,7 +132,10 @@ for (const [translationKey, posts] of postGroups)
       errors.push(`${post.filename} does not use its stable content ID for comments`);
     }
 
-    if (!html.includes("data-article-actions") || !html.includes("data-reactions"))
+    if (!html.includes("data-article-actions")
+      || !html.includes("data-reactions")
+      || !html.includes("data-article-image-lightbox")
+      || !html.includes("article-image-trigger"))
     {
       errors.push(`${post.filename} is missing the global article experience`);
     }

@@ -20,6 +20,12 @@ const featuredImage = post.data.featuredImage;
 const copy = getPostCardUiCopy(language);
 const translations = [post, ...alternatePosts].sort((left, right) => left.data.language.localeCompare(right.data.language));
 const publicationDate = getPostPublicationDate(post);
+const titleWords = post.data.title.trim().split(/\s+/u).filter(Boolean);
+const placeholderMark = titleWords
+  .slice(0, 2)
+  .map((word) => [...word][0] ?? "")
+  .join("")
+  .toLocaleUpperCase(language);
 ---
 
 <article
@@ -32,8 +38,18 @@ const publicationDate = getPostPublicationDate(post);
   ]}
   lang={language}
 >
-  {featuredImage !== undefined && (
-    <a class="post-card__media" href={postPath} aria-label={`${copy.read}: ${post.data.title}`}>
+  <a
+    class:list={[
+      "post-card__media",
+      {
+        "post-card__media--placeholder": featuredImage === undefined,
+        [`post-card__media--${topic.key}`]: featuredImage === undefined,
+      },
+    ]}
+    href={postPath}
+    aria-label={`${copy.read}: ${post.data.title}`}
+  >
+    {featuredImage !== undefined ? (
       <img
         src={featuredImage}
         alt=""
@@ -43,9 +59,15 @@ const publicationDate = getPostPublicationDate(post);
         fetchpriority={featured ? "high" : "auto"}
         decoding="async"
       />
-      <span class="post-card__index" aria-hidden="true">{publicationDate.getUTCFullYear()}</span>
-    </a>
-  )}
+    ) : (
+      <span class="post-card__placeholder" aria-hidden="true">
+        <span class="post-card__placeholder-orbit"></span>
+        <span class="post-card__placeholder-mark">{placeholderMark}</span>
+        <span class="post-card__placeholder-label">digows.com</span>
+      </span>
+    )}
+    <span class="post-card__index" aria-hidden="true">{publicationDate.getUTCFullYear()}</span>
+  </a>
   <div class="post-card__body">
     <div class="post-card__meta">
       <a class="post-card__topic" href={getTopicPath(topic, language)}>{topic.labels[language]}</a>

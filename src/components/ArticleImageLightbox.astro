@@ -1,0 +1,175 @@
+---
+import type { Locale } from "../i18n/locales";
+import { getArticleImageUiCopy } from "../i18n/ui";
+
+interface Props
+{
+  readonly language: Locale;
+}
+
+const { language } = Astro.props;
+const copy = getArticleImageUiCopy(language);
+---
+
+<dialog
+  id="article-image-lightbox"
+  class="article-image-lightbox"
+  data-article-image-lightbox
+  data-open-label={copy.open}
+  aria-label={copy.dialogTitle}
+>
+  <div class="article-image-lightbox__surface">
+    <form method="dialog">
+      <button class="article-image-lightbox__close" type="submit" aria-label={copy.close} autofocus>
+        <span aria-hidden="true">×</span>
+      </button>
+    </form>
+    <figure>
+      <div class="article-image-lightbox__viewport">
+        <img data-article-image-lightbox-image alt="" />
+      </div>
+      <figcaption data-article-image-lightbox-caption hidden></figcaption>
+    </figure>
+    <a
+      class="article-image-lightbox__original"
+      data-article-image-lightbox-original
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {copy.original}<span aria-hidden="true">↗</span>
+    </a>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>("[data-article-image-lightbox]");
+  const content = document.querySelector<HTMLElement>(".post-content");
+
+  if (dialog !== null && content !== null)
+  {
+    initializeArticleImageLightbox(dialog, content);
+  }
+
+  function initializeArticleImageLightbox(dialog: HTMLDialogElement, content: HTMLElement): void
+  {
+    const expandedImage = dialog.querySelector<HTMLImageElement>("[data-article-image-lightbox-image]");
+    const caption = dialog.querySelector<HTMLElement>("[data-article-image-lightbox-caption]");
+    const original = dialog.querySelector<HTMLAnchorElement>("[data-article-image-lightbox-original]");
+    const viewport = dialog.querySelector<HTMLElement>(".article-image-lightbox__viewport");
+    const openLabel = dialog.dataset.openLabel ?? "";
+    let activeTrigger: HTMLButtonElement | null = null;
+
+    if (expandedImage === null || caption === null || original === null || viewport === null)
+    {
+      return;
+    }
+
+    for (const image of content.querySelectorAll<HTMLImageElement>("img"))
+    {
+      const media = image.closest("picture") ?? image;
+
+      if (media.closest("a, button, [data-image-lightbox='off']") !== null)
+      {
+        continue;
+      }
+
+      const alternativeText = image.getAttribute("alt")?.trim() ?? "";
+      const modalCaption = findEditorialImageCaption(media, alternativeText);
+      const mediaParent = media.parentElement;
+      const standaloneParagraph = mediaParent?.tagName === "P"
+        && mediaParent.childElementCount === 1
+        && mediaParent.textContent?.trim() === ""
+        ? mediaParent
+        : null;
+      const trigger = document.createElement("button");
+      const hint = document.createElement("span");
+      trigger.type = "button";
+      trigger.className = "article-image-trigger";
+      trigger.setAttribute("aria-haspopup", "dialog");
+      trigger.setAttribute("aria-controls", "article-image-lightbox");
+      trigger.setAttribute("aria-label", alternativeText === "" ? openLabel : `${openLabel}: ${alternativeText}`);
+      trigger.title = openLabel;
+      hint.className = "article-image-trigger__hint";
+      hint.setAttribute("aria-hidden", "true");
+
+      if (standaloneParagraph === null)
+      {
+        media.before(trigger);
+      }
+      else
+      {
+        standaloneParagraph.replaceWith(trigger);
+      }
+
+      trigger.append(media, hint);
+
+      trigger.addEventListener("click", () =>
+      {
+        const source = image.currentSrc || image.src;
+
+        if (source === "")
+        {
+          return;
+        }
+
+        activeTrigger = trigger;
+        viewport.scrollTop = 0;
+        viewport.scrollLeft = 0;
+        expandedImage.src = source;
+        expandedImage.alt = alternativeText;
+        original.href = source;
+        caption.textContent = modalCaption;
+        caption.hidden = modalCaption === "";
+
+        if (image.naturalWidth > 0 && image.naturalHeight > 0)
+        {
+          expandedImage.width = image.naturalWidth;
+          expandedImage.height = image.naturalHeight;
+        }
+
+        if (!dialog.open)
+        {
+          dialog.showModal();
+        }
+      });
+    }
+
+    dialog.addEventListener("click", (event) =>
+    {
+      if (event.target === dialog)
+      {
+        dialog.close();
+      }
+    });
+
+    dialog.addEventListener("close", () =>
+    {
+      expandedImage.removeAttribute("src");
+      expandedImage.removeAttribute("width");
+      expandedImage.removeAttribute("height");
+      expandedImage.alt = "";
+      caption.textContent = "";
+      caption.hidden = true;
+      original.removeAttribute("href");
+      activeTrigger?.focus({ preventScroll: true });
+      activeTrigger = null;
+    });
+  }
+
+  function findEditorialImageCaption(media: Element, fallback: string): string
+  {
+    const mediaParent = media.parentElement;
+    const followingElement = mediaParent?.tagName === "P" && mediaParent.childElementCount === 1
+      ? mediaParent.nextElementSibling
+      : media.nextElementSibling;
+
+    if (followingElement?.tagName === "P"
+      && followingElement.childElementCount === 1
+      && followingElement.firstElementChild?.tagName === "EM")
+    {
+      return followingElement.textContent?.trim() || fallback;
+    }
+
+    return fallback;
+  }
+</script>

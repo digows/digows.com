@@ -50,6 +50,31 @@ or crop is language-specific. New page media uses the equivalent layout under
 Alternative text and captions are content, not asset metadata: keep them in the
 localized Markdown or typed page content.
 
+### Editorial agent: article images
+
+Every image inside a post body is automatically enhanced by
+`src/components/ArticleImageLightbox.astro`. The editorial agent invokes this
+behavior through normal Markdown or HTML image markup; posts must remain plain
+Markdown and must not import UI components or duplicate lightbox scripts.
+
+For each article image, the editorial agent must:
+
+- use a site-relative asset path under the convention above;
+- write localized alternative text that describes the information conveyed by
+  the image, not its filename or a generic label;
+- add a localized italic caption immediately after the image when the context or
+  provenance is not already clear from the surrounding paragraph;
+- preserve intrinsic `width` and `height` when using HTML image markup;
+- use `loading="lazy" decoding="async"` below the initial viewport, reserving
+  `loading="eager" fetchpriority="high"` for a genuine lead image;
+- leave the image unlinked so the global lightbox can enhance it.
+
+Use `data-image-lightbox="off"` only when the image is intentionally decorative
+or another explicit interaction owns it. A linked image keeps its link behavior
+and is also excluded automatically. The lightbox supplies the localized open,
+close, caption, and original-file experience; editorial content must not repeat
+those controls.
+
 ## SEO and compatibility
 
 Every canonical page is locale-prefixed and emits its own canonical URL,

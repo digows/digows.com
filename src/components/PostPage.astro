@@ -2,6 +2,7 @@
 import { render } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import ArticleExperience from "./ArticleExperience.astro";
+import ArticleImageLightbox from "./ArticleImageLightbox.astro";
 import ArticleInsights from "./ArticleInsights.astro";
 import Comments from "./Comments.astro";
 import IflessExperience from "./IflessExperience.astro";
@@ -77,6 +78,7 @@ const publicationDate = getPostPublicationDate(post);
     <div class="post-content">
       <Content />
     </div>
+    <ArticleImageLightbox language={post.data.language} />
     {post.data.editorial && <ArticleInsights editorial={post.data.editorial} language={post.data.language} relatedPosts={relatedPosts} />}
     {post.data.editorial?.interactiveExperience === "find-hidden-decision" && <IflessExperience language={post.data.language} />}
     <NewsletterSignup language={post.data.language} source="article" compact />
