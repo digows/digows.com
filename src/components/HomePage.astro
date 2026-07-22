@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import HomeProjectBanner from "./HomeProjectBanner.astro";
 import HomeSignalField from "./HomeSignalField.astro";
 import PostCard from "./PostCard.astro";
 import { getPublishedPosts, type Post } from "../lib/posts";
@@ -50,6 +51,7 @@ const hasLongHeroTitle = [...copy.title].length > 27;
         <a href={getSiteRoutePath("about", language)}>{copy.profile} <span aria-hidden="true">→</span></a>
       </nav>
     </div>
+    <HomeProjectBanner spotlight={copy.projectSpotlight} />
   </header>
   <section class="post-list" aria-labelledby="latest-posts">
     <header class="post-list__header">

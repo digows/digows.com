@@ -29,6 +29,34 @@ const fallbackCollageLabels = {
 const collageLabel = content.eits.collageLabel
   ?? fallbackCollageLabels[content.language as keyof typeof fallbackCollageLabels]
   ?? "";
+
+interface AgentPresentation
+{
+  readonly className: string;
+  readonly image?: string;
+  readonly featured?: boolean;
+}
+
+const agentPresentations: Readonly<Record<string, AgentPresentation>> = {
+  Kavor: {
+    className: "kavor",
+    image: "/media/about/agents/kavor.webp",
+    featured: true,
+  },
+  Kortex: {
+    className: "kortex",
+    image: "/media/about/agents/kortex.webp",
+  },
+  "Agent Asaph": {
+    className: "asaph",
+  },
+  ViaFronteira: {
+    className: "viafronteira",
+    image: "/media/about/agents/viafronteira.webp",
+  },
+};
+
+const getAgentPresentation = (name: string): AgentPresentation => agentPresentations[name] ?? { className: "default" };
 ---
 
 <div class="about-experience about-experience--chronicle" data-about-experience data-language={content.language}>
@@ -81,7 +109,32 @@ const collageLabel = content.eits.collageLabel
 
       <section class="about-section about-agents" id="agents" data-scene="agents">
         <header class="about-section__header about-reveal"><p class="eyebrow">{content.agents.eyebrow}</p><h2>{content.agents.title}</h2><div class="about-section__prose"><p id={paragraphId(content.agents.body)} data-article-paragraph>{content.agents.body}</p><p id={paragraphId(content.agents.continuation)} data-article-paragraph>{content.agents.continuation}</p></div></header>
-        <div class="about-agent-grid about-agent-grid--links">{content.agents.cards.map((card, index) => <a class="about-agent-card about-reveal" href={card.href} target="_blank" rel="noopener noreferrer"><span>0{index + 1}</span><h3>{card.name}</h3><p id={paragraphId(card.body)} data-article-paragraph>{card.body}</p></a>)}</div>
+        <div class="about-agent-grid about-agent-grid--links">{content.agents.cards.map((card, index) => {
+          const presentation = getAgentPresentation(card.name);
+          return <a
+            class:list={[
+              "about-agent-card",
+              "about-reveal",
+              `about-agent-card--${presentation.className}`,
+              { "about-agent-card--featured": presentation.featured === true },
+            ]}
+            href={card.href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <div class="about-agent-card__visual" aria-hidden="true">
+              {presentation.image
+                ? <img src={presentation.image} alt="" width="384" height="384" loading="lazy" />
+                : <span class="about-agent-card__asaph-mark">𝄞</span>}
+            </div>
+            <div class="about-agent-card__content">
+              <span class="about-agent-card__index">0{index + 1}</span>
+              <h3>{card.name}</h3>
+              <p id={paragraphId(card.body)} data-article-paragraph>{card.body}</p>
+              {card.cta && <span class="about-agent-card__cta">{card.cta}<span aria-hidden="true">↗</span></span>}
+            </div>
+          </a>;
+        })}</div>
       </section>
 
       <section class="about-section about-human about-human--cinematic" id="outside" data-scene="human">

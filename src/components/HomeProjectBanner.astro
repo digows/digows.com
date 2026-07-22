@@ -1,0 +1,32 @@
+---
+import type { HomeProjectSpotlight } from "../content/pages/home/content";
+
+interface Props
+{
+  readonly spotlight: HomeProjectSpotlight;
+}
+
+const { spotlight } = Astro.props;
+---
+
+<aside class="home-project" aria-label={spotlight.eyebrow}>
+  <a
+    class="home-project__link"
+    href={spotlight.href}
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <span class="home-project__mark" aria-hidden="true">
+      <img src="/media/about/agents/kavor.webp" alt="" width="384" height="384" loading="eager" />
+    </span>
+    <span class="home-project__copy">
+      <span class="home-project__eyebrow">{spotlight.eyebrow}</span>
+      <strong>{spotlight.title}</strong>
+      <span>{spotlight.description}</span>
+    </span>
+    <span class="home-project__action">
+      {spotlight.cta}
+      <span aria-hidden="true">↗</span>
+    </span>
+  </a>
+</aside>

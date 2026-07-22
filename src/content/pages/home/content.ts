@@ -1,5 +1,14 @@
 import type { Locale } from "../../../i18n/locales";
 
+export interface HomeProjectSpotlight
+{
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly description: string;
+  readonly cta: string;
+  readonly href: string;
+}
+
 export interface HomeContent
 {
   readonly title: string;
@@ -15,6 +24,7 @@ export interface HomeContent
   readonly listTitle: string;
   readonly archive: string;
   readonly empty: string;
+  readonly projectSpotlight: HomeProjectSpotlight;
 }
 
 export const homeContent: Readonly<Record<Locale, HomeContent>> = {
@@ -32,6 +42,13 @@ export const homeContent: Readonly<Record<Locale, HomeContent>> = {
     listTitle: "Ideas from practice.",
     archive: "View the complete archive",
     empty: "The archive is being prepared.",
+    projectSpotlight: {
+      eyebrow: "Check out my latest pet project",
+      title: "Engineering work deserves more than a chat.",
+      description: "Kavor connects coding agents, specifications, files, terminals, decisions, and evidence in one durable visual workspace.",
+      cta: "Explore Kavor",
+      href: "https://agentkavor.com/en",
+    },
   },
   "pt-BR": {
     title: "Software fora do happy path.",
@@ -47,6 +64,13 @@ export const homeContent: Readonly<Record<Locale, HomeContent>> = {
     listTitle: "Ideias que vêm da prática.",
     archive: "Ver o arquivo completo",
     empty: "O arquivo está sendo preparado.",
+    projectSpotlight: {
+      eyebrow: "Conheça meu projeto mais recente",
+      title: "Engenharia merece mais do que um chat.",
+      description: "Kavor conecta coding agents, especificações, arquivos, terminais, decisões e evidências em um workspace visual e durável.",
+      cta: "Explorar o Kavor",
+      href: "https://agentkavor.com/pt-br",
+    },
   },
   es: {
     title: "Software después del happy path.",
@@ -62,6 +86,13 @@ export const homeContent: Readonly<Record<Locale, HomeContent>> = {
     listTitle: "Ideas que nacen de la práctica.",
     archive: "Ver el archivo completo",
     empty: "El archivo se está preparando.",
+    projectSpotlight: {
+      eyebrow: "Conoce mi proyecto más reciente",
+      title: "La ingeniería merece más que un chat.",
+      description: "Kavor conecta coding agents, especificaciones, archivos, terminales, decisiones y evidencias en un espacio de trabajo visual y duradero.",
+      cta: "Explorar Kavor",
+      href: "https://agentkavor.com/es",
+    },
   },
   fr: {
     title: "Le logiciel après le happy path.",
@@ -77,6 +108,13 @@ export const homeContent: Readonly<Record<Locale, HomeContent>> = {
     listTitle: "Des idées issues de la pratique.",
     archive: "Voir toutes les archives",
     empty: "Les archives sont en préparation.",
+    projectSpotlight: {
+      eyebrow: "Découvrez mon projet le plus récent",
+      title: "L’ingénierie mérite mieux qu’un simple chat.",
+      description: "Kavor relie coding agents, spécifications, fichiers, terminaux, décisions et preuves dans un espace de travail visuel et durable.",
+      cta: "Découvrir Kavor",
+      href: "https://agentkavor.com/fr",
+    },
   },
   "zh-Hans": {
     title: "越过 happy path 之后的软件。",
@@ -92,5 +130,12 @@ export const homeContent: Readonly<Record<Locale, HomeContent>> = {
     listTitle: "源于实践的思考。",
     archive: "查看完整归档",
     empty: "文章归档正在准备中。",
+    projectSpotlight: {
+      eyebrow: "看看我最近在做的项目",
+      title: "工程工作不该止于一次聊天。",
+      description: "Kavor 将 coding agent、规格、文件、终端、决策与证据连接在一个持久的可视化工作空间中。",
+      cta: "探索 Kavor",
+      href: "https://agentkavor.com/zh",
+    },
   },
 };
